@@ -1,0 +1,18 @@
+flutter_launcher_icons:
+  image_path: assets/branding/entries-icon.png
+  android: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#1E2F43"
+  adaptive_icon_foreground: assets/branding/entries-foreground.png
+  adaptive_icon_foreground_inset: 0
+  adaptive_icon_monochrome: assets/branding/entries-monochrome.png
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#1E2F43"
+  web:
+    generate: true
+    background_color: "#1E2F43"
+    theme_color: "#1E2F43"
+  macos:
+    generate: true
+    image_path: assets/branding/entries-desktop.png

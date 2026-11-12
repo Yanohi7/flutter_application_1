@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Entries — Test workspace",
+      "type": "dart",
+      "request": "launch",
+      "program": "test/tools/run_test_workspace.dart",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "Entries — Personal workspace",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart"
+    }
+  ]
+}

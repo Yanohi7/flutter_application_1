@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+#include "AdMob.xcconfig"
+ENTRIES_GOOGLE_REVERSED_CLIENT_ID = entrynote-oauth-unconfigured
+#include? "GoogleOAuth.local.xcconfig"
