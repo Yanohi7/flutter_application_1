@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -21,17 +22,22 @@ class BackgroundPreviewPage extends StatefulWidget {
     required this.path,
     required this.preferences,
     this.isExisting = false,
+    this.onApply,
   }) : opacityOnly = false;
 
-  const BackgroundPreviewPage.opacity({super.key, required this.preferences})
-    : path = null,
-      isExisting = true,
-      opacityOnly = true;
+  const BackgroundPreviewPage.opacity({
+    super.key,
+    required this.preferences,
+    this.onApply,
+  }) : path = null,
+       isExisting = true,
+       opacityOnly = true;
 
   final String? path;
   final bool opacityOnly;
   final AppPreferences preferences;
   final bool isExisting;
+  final Future<void> Function(PhotoComposition composition)? onApply;
 
   @override
   State<BackgroundPreviewPage> createState() => _BackgroundPreviewPageState();
@@ -44,7 +50,9 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
   late double _x = widget.isExisting ? widget.preferences.photoX : 0;
   late double _y = widget.isExisting ? widget.preferences.photoY : 0;
   late double _zoom = widget.isExisting ? widget.preferences.photoZoom : 1;
-  late double _fade = widget.preferences.backgroundFade;
+  late double _fade = widget.isExisting
+      ? widget.preferences.backgroundFade
+      : 0.18;
   late double _opacity = widget.preferences.surfaceOpacity;
   double _gestureZoom = 1, _gestureX = 0, _gestureY = 0;
   Offset _gestureOrigin = Offset.zero;
@@ -54,24 +62,31 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
   Size? _imageSize;
   ImageStream? _stream;
   ImageStreamListener? _listener;
+  bool _applying = false;
+  bool _imageFailed = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final path = _photoPath;
     if (_stream != null || path == null || widget.opacityOnly) return;
-    _stream = FileImage(File(path))
+    _stream = PhotoWallpaper.imageProvider(path)
         .resolve(createLocalImageConfiguration(context));
-    _listener = ImageStreamListener((info, _) {
-      if (mounted)
-        setState(
-          () => _imageSize = Size(
-            info.image.width.toDouble(),
-            info.image.height.toDouble(),
-          ),
-        );
-      info.dispose();
-    }, onError: (Object _, StackTrace? _) {});
+    _listener = ImageStreamListener(
+      (info, _) {
+        if (mounted)
+          setState(
+            () => _imageSize = Size(
+              info.image.width.toDouble(),
+              info.image.height.toDouble(),
+            ),
+          );
+        info.dispose();
+      },
+      onError: (Object _, StackTrace? _) {
+        if (mounted) setState(() => _imageFailed = true);
+      },
+    );
     _stream!.addListener(_listener!);
   }
 
@@ -79,6 +94,31 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
   void dispose() {
     if (_listener != null) _stream?.removeListener(_listener!);
     super.dispose();
+  }
+
+  Future<void> _apply() async {
+    if (_applying) return;
+    final composition = PhotoComposition(_x, _y, _zoom, _fade, _opacity);
+    final save = widget.onApply;
+    if (save != null) {
+      setState(() => _applying = true);
+      try {
+        await save(composition);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _applying = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!
+                  .couldNotSaveYourBackgroundPleaseTryAgain,
+            ),
+          ),
+        );
+        return;
+      }
+    }
+    if (mounted) Navigator.pop(context, composition);
   }
 
   void _pan(ScaleUpdateDetails details, Size viewport) {
@@ -139,126 +179,136 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
       palette: widget.preferences.palette,
       surfaceOpacity: _opacity,
     ).copyWith(scaffoldBackgroundColor: Colors.transparent);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.opacityOnly ? 'Interface opacity' : 'Preview background',
+    return PopScope(
+      canPop: !_applying,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.opacityOnly
+                ? AppLocalizations.of(context)!.interfaceOpacity
+                : AppLocalizations.of(context)!.previewBackground,
+          ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              children: [
-                ReadablePanel(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                children: [
+                  ReadablePanel(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      widget.opacityOnly
+                          ? AppLocalizations.of(context)!
+                                .previewTheChangeOnYourNotesBeforeApplyingIt
+                          : AppLocalizations.of(context)!
+                                .dragThePhotoToRepositionItOrPinchToZoom,
+                    ),
                   ),
-                  child: Text(
-                    widget.opacityOnly
-                        ? 'Preview the change on your notes before applying it.'
-                        : 'Drag the photo to reposition it or pinch to zoom.',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final maxHeight = (screen.height * 0.48).clamp(
-                      180.0,
-                      480.0,
-                    );
-                    final width = math.min(
-                      constraints.maxWidth,
-                      maxHeight * screen.width / screen.height,
-                    );
-                    final viewport = Size(
-                      width,
-                      width * screen.height / screen.width,
-                    );
-                    return Center(
-                      child: Container(
-                        width: viewport.width,
-                        height: viewport.height,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outlineVariant,
+                  const SizedBox(height: 12),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxHeight = (screen.height * 0.48).clamp(
+                        180.0,
+                        480.0,
+                      );
+                      final width = math.min(
+                        constraints.maxWidth,
+                        maxHeight * screen.width / screen.height,
+                      );
+                      final viewport = Size(
+                        width,
+                        width * screen.height / screen.width,
+                      );
+                      return Center(
+                        child: Container(
+                          width: viewport.width,
+                          height: viewport.height,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant,
+                            ),
                           ),
-                        ),
-                        child: Listener(
-                          behavior: HitTestBehavior.opaque,
-                          onPointerDown: (event) {
-                            if (_pointerCount == 0)
-                              _pointerOrigin = event.localPosition;
-                            _pointerCount++;
-                          },
-                          onPointerUp: (_) {
-                            _pointerCount = math.max(0, _pointerCount - 1);
-                            if (_pointerCount == 0) _pointerOrigin = null;
-                          },
-                          onPointerCancel: (_) {
-                            _pointerCount = 0;
-                            _pointerOrigin = null;
-                          },
-                          child: GestureDetector(
-                            key: const Key('background-preview-stage'),
+                          child: Listener(
                             behavior: HitTestBehavior.opaque,
-                            dragStartBehavior: DragStartBehavior.down,
-                            onScaleStart: widget.opacityOnly
-                                ? null
-                                : (details) {
-                                    _gesturePointerCount = details.pointerCount;
-                                    _gestureOrigin = details.pointerCount <= 1
-                                        ? (_pointerOrigin ??
-                                              details.localFocalPoint)
-                                        : details.localFocalPoint;
-                                    _gestureZoom = _zoom;
-                                    _gestureX = _x;
-                                    _gestureY = _y;
-                                  },
-                            onScaleUpdate: widget.opacityOnly
-                                ? null
-                                : (details) => _pan(details, viewport),
-                            child: FittedBox(
-                              fit: BoxFit.contain,
-                              child: SizedBox(
-                                width: screen.width,
-                                height: screen.height,
-                                child: MediaQuery(
-                                  data: media.copyWith(
-                                    size: screen,
-                                    padding: EdgeInsets.zero,
-                                    viewPadding: EdgeInsets.zero,
-                                    viewInsets: EdgeInsets.zero,
-                                  ),
-                                  child: Theme(
-                                    data: theme,
-                                    child: IgnorePointer(
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          ThemeWallpaper(
-                                            style: widget
-                                                .preferences
-                                                .backgroundStyle,
-                                          ),
-                                          if (photo != null)
-                                            Opacity(
-                                              opacity: 1 - _fade,
-                                              child: PhotoWallpaper(
-                                                path: photo,
-                                                x: _x,
-                                                y: _y,
-                                                zoom: _zoom,
-                                              ),
+                            onPointerDown: (event) {
+                              if (_pointerCount == 0)
+                                _pointerOrigin = event.localPosition;
+                              _pointerCount++;
+                            },
+                            onPointerUp: (_) {
+                              _pointerCount = math.max(0, _pointerCount - 1);
+                              if (_pointerCount == 0) _pointerOrigin = null;
+                            },
+                            onPointerCancel: (_) {
+                              _pointerCount = 0;
+                              _pointerOrigin = null;
+                            },
+                            child: GestureDetector(
+                              key: const Key('background-preview-stage'),
+                              behavior: HitTestBehavior.opaque,
+                              dragStartBehavior: DragStartBehavior.down,
+                              onScaleStart: widget.opacityOnly
+                                  ? null
+                                  : (details) {
+                                      _gesturePointerCount =
+                                          details.pointerCount;
+                                      _gestureOrigin = details.pointerCount <= 1
+                                          ? (_pointerOrigin ??
+                                                details.localFocalPoint)
+                                          : details.localFocalPoint;
+                                      _gestureZoom = _zoom;
+                                      _gestureX = _x;
+                                      _gestureY = _y;
+                                    },
+                              onScaleUpdate: widget.opacityOnly
+                                  ? null
+                                  : (details) => _pan(details, viewport),
+                              child: FittedBox(
+                                fit: BoxFit.contain,
+                                child: SizedBox(
+                                  width: screen.width,
+                                  height: screen.height,
+                                  child: MediaQuery(
+                                    data: media.copyWith(
+                                      size: screen,
+                                      padding: EdgeInsets.zero,
+                                      viewPadding: EdgeInsets.zero,
+                                      viewInsets: EdgeInsets.zero,
+                                    ),
+                                    child: Theme(
+                                      data: theme,
+                                      child: IgnorePointer(
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            ThemeWallpaper(
+                                              style: widget
+                                                  .preferences
+                                                  .backgroundStyle,
                                             ),
-                                          const HomePage(isPreview: true),
-                                        ],
+                                            if (photo != null)
+                                              Opacity(
+                                                opacity: 1 - _fade,
+                                                child: PhotoWallpaper(
+                                                  path: photo,
+                                                  x: _x,
+                                                  y: _y,
+                                                  zoom: _zoom,
+                                                ),
+                                              ),
+                                            const HomePage(isPreview: true),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -267,70 +317,81 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 18),
-                ReadablePanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (!widget.opacityOnly) ...[
-                        _slider(
-                          'Zoom · ${(_zoom * 100).round()}%',
-                          _zoom,
-                          1,
-                          3,
-                          (value) => _zoom = value,
-                        ),
-                        _slider(
-                          'Photo opacity · ${((1 - _fade) * 100).round()}%',
-                          1 - _fade,
-                          0.04,
-                          1,
-                          (value) => _fade = 1 - value,
-                        ),
-                      ],
-                      _slider(
-                        'Interface opacity · ${(_opacity * 100).round()}%',
-                        _opacity,
-                        0.25,
-                        1,
-                        (value) => _opacity = value,
-                      ),
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (!widget.opacityOnly)
-                            TextButton.icon(
-                              onPressed: () => setState(() {
-                                _x = 0;
-                                _y = 0;
-                                _zoom = 1;
-                              }),
-                              icon: const Icon(Icons.center_focus_strong),
-                              label: const Text('Reset framing'),
-                            ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(
-                              context,
-                              PhotoComposition(_x, _y, _zoom, _fade, _opacity),
-                            ),
-                            child: Text(
-                              widget.opacityOnly
-                                  ? 'Apply opacity'
-                                  : 'Apply background',
-                            ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  ReadablePanel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (!widget.opacityOnly) ...[
+                          _slider(
+                            'Zoom · ${(_zoom * 100).round()}%',
+                            _zoom,
+                            1,
+                            3,
+                            (value) => _zoom = value,
+                          ),
+                          _slider(
+                            'Photo opacity · ${((1 - _fade) * 100).round()}%',
+                            1 - _fade,
+                            0.04,
+                            1,
+                            (value) => _fade = 1 - value,
                           ),
                         ],
-                      ),
-                    ],
+                        _slider(
+                          'Interface opacity · ${(_opacity * 100).round()}%',
+                          _opacity,
+                          0.25,
+                          1,
+                          (value) => _opacity = value,
+                        ),
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (!widget.opacityOnly)
+                              TextButton.icon(
+                                onPressed: () => setState(() {
+                                  _x = 0;
+                                  _y = 0;
+                                  _zoom = 1;
+                                }),
+                                icon: const Icon(Icons.center_focus_strong),
+                                label: Text(
+                                  AppLocalizations.of(context)!.resetFraming,
+                                ),
+                              ),
+                            FilledButton(
+                              onPressed:
+                                  _applying ||
+                                      (!widget.opacityOnly &&
+                                          _imageSize == null)
+                                  ? null
+                                  : _apply,
+                              child: Text(
+                                _applying
+                                    ? AppLocalizations.of(context)!.saving
+                                    : widget.opacityOnly
+                                    ? AppLocalizations.of(context)!.applyOpacity
+                                    : AppLocalizations.of(context)!
+                                          .applyBackground,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_imageFailed)
+                          Text(
+                            AppLocalizations.of(context)!.couldNotOpenThisImage,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

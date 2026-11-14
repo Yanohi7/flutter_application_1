@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
@@ -12,34 +13,44 @@ class BackgroundStorage {
   );
 
   static Future<String?> pick() async {
-    final selected = await openFile(
-      acceptedTypeGroups: [
-        const XTypeGroup(
-          label: 'Background photos',
-          extensions: ['jpg', 'jpeg', 'png', 'webp'],
-          mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-        ),
-      ],
-    );
+    final selected = Platform.isIOS
+        ? await ImagePicker().pickImage(
+            source: ImageSource.gallery,
+            maxWidth: 3200,
+            maxHeight: 3200,
+            imageQuality: 95,
+            requestFullMetadata: false,
+          )
+        : await openFile(
+            acceptedTypeGroups: [
+              const XTypeGroup(
+                label: 'Background photos',
+                extensions: ['jpg', 'jpeg', 'png', 'webp'],
+                mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+              ),
+            ],
+          );
     if (selected == null) return null;
     if (await selected.length() > 20 * 1024 * 1024)
       throw const FormatException('Choose an image smaller than 20 MB.');
     final bytes = await selected.readAsBytes();
     final descriptor = await ui.ImmutableBuffer.fromUint8List(bytes);
     try {
-      final image = await ui.ImageDescriptor.encoded(descriptor);
+      final ui.ImageDescriptor image;
       try {
-        if (image.width > 16000 || image.height > 16000)
+        image = await ui.ImageDescriptor.encoded(descriptor);
+      } catch (_) {
+        throw const FormatException('This image could not be opened.');
+      }
+      try {
+        if (image.width > 16000 || image.height > 16000) {
           throw const FormatException(
             'Choose an image up to 16,000 pixels on each side.',
           );
+        }
       } finally {
         image.dispose();
       }
-    } catch (_) {
-      throw const FormatException(
-        'This image could not be opened. Choose a JPG, PNG or WebP image.',
-      );
     } finally {
       descriptor.dispose();
     }

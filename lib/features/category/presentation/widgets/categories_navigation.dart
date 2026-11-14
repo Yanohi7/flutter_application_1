@@ -1,5 +1,6 @@
 // Build root and child category chip rows while keeping the selected ancestor path visible
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -41,13 +42,18 @@ class _CategoriesNavigationState extends State<CategoriesNavigation> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(state.errorMessage ?? 'Failed to load categories'),
+              Text(
+                state.errorMessage ??
+                    AppLocalizations.of(context)!.failedToLoadCategories,
+              ),
 
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () => cubit.loadCategories(),
                 icon: const Icon(Icons.refresh),
-                label: const Text('Retry loading categories'),
+                label: Text(
+                  AppLocalizations.of(context)!.retryLoadingCategories,
+                ),
               ),
             ],
           );
@@ -86,7 +92,7 @@ class _CategoriesNavigationState extends State<CategoriesNavigation> {
           children: [
             _row([
               _chip(
-                label: 'All Entries',
+                label: AppLocalizations.of(context)!.allEntries,
                 selected: isAllEntries,
                 onTap: enabled ? () => select(null) : null,
               ),
@@ -108,7 +114,7 @@ class _CategoriesNavigationState extends State<CategoriesNavigation> {
 
                 _row([
                   _chip(
-                    label: 'Direct entries',
+                    label: AppLocalizations.of(context)!.directEntries,
                     onLongPress: enabled
                         ? () => CategoryActions.show(context, parent)
                         : null,
@@ -141,7 +147,9 @@ class _CategoriesNavigationState extends State<CategoriesNavigation> {
                     _collapsed ? Icons.expand_more : Icons.expand_less,
                   ),
                   label: Text(
-                    _collapsed ? 'Show more levels' : 'Collapse to two rows',
+                    _collapsed
+                        ? AppLocalizations.of(context)!.showMoreLevels
+                        : AppLocalizations.of(context)!.collapseToTwoRows,
                   ),
                 ),
             ],

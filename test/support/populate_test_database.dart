@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -59,7 +58,6 @@ Future<void> _insertWorkspace(
   await database.insert('profiles', {
     'user_id': userId,
     'display_name': 'Alex Morgan',
-    'avatar_image': _sampleAvatar(),
     'created_at': createdAt,
   });
 
@@ -167,54 +165,6 @@ Future<void> _insertWorkspace(
   for (final category in sampleCategories) {
     await addBranch(category);
   }
-}
-
-Uint8List _sampleAvatar() {
-  final picture = img.Image(width: 192, height: 192);
-  img.fill(picture, color: img.ColorRgb8(38, 70, 83));
-  img.fillCircle(
-    picture,
-    x: 155,
-    y: 36,
-    radius: 48,
-    color: img.ColorRgb8(65, 130, 129),
-  );
-  img.fillCircle(
-    picture,
-    x: 96,
-    y: 166,
-    radius: 52,
-    color: img.ColorRgb8(230, 163, 95),
-  );
-  img.fillCircle(
-    picture,
-    x: 96,
-    y: 78,
-    radius: 39,
-    color: img.ColorRgb8(34, 34, 48),
-  );
-  img.fillCircle(
-    picture,
-    x: 98,
-    y: 89,
-    radius: 29,
-    color: img.ColorRgb8(243, 195, 153),
-  );
-  img.fillCircle(
-    picture,
-    x: 88,
-    y: 90,
-    radius: 3,
-    color: img.ColorRgb8(34, 34, 48),
-  );
-  img.fillCircle(
-    picture,
-    x: 108,
-    y: 90,
-    radius: 3,
-    color: img.ColorRgb8(34, 34, 48),
-  );
-  return img.encodePng(picture);
 }
 
 Uint8List _sampleAudio() {

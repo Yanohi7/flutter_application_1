@@ -1,10 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/database/database_helper.dart';
 import 'cloud_sync_controller.dart';
+import 'cloud_sync_messages.dart';
 import 'google_sign_in_button.dart';
 
-enum _AccountAction { reconnect, signOut }
+Future<void> showWorkspaceAccounts(
+  BuildContext context,
+  CloudSyncController sync,
+) async {
+  if (sync.busy || sync.profile.saving) return;
+  final accounts = await sync.localAccounts();
+  if (!context.mounted || sync.busy) return;
+  final l10n = AppLocalizations.of(context)!;
+  final selected = await showModalBottomSheet<Object>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (context) => ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.only(bottom: 12),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            l10n.switchAccount,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
+        for (final account in accounts)
+          ListTile(
+            leading: CircleAvatar(
+              foregroundImage: account.avatar == null
+                  ? null
+                  : MemoryImage(account.avatar!),
+              child: const Icon(Icons.person_outline),
+            ),
+            title: Text(
+              account.isGuest && account.displayName == 'Guest'
+                  ? l10n.guest
+                  : account.displayName,
+            ),
+            subtitle: Text(
+              account.isGuest
+                  ? l10n.entriesSavedOnThisDevice
+                  : (account.googleEmail ?? l10n.googleAccount),
+            ),
+            selected: account.id == sync.activeUserId,
+            trailing: account.id == sync.activeUserId
+                ? const Icon(Icons.check)
+                : null,
+            onTap: () => Navigator.pop(context, account),
+          ),
+        ListTile(
+          leading: const Icon(Icons.person_add_outlined),
+          title: Text(l10n.addGoogleAccount),
+          onTap: () => Navigator.pop(context, true),
+        ),
+      ],
+    ),
+  );
+  if (!context.mounted) return;
+  if (selected is LocalUserAccount) {
+    await sync.selectAccount(selected);
+  } else if (selected == true) {
+    await sync.connect();
+  }
+}
 
 class GoogleAccountActions extends StatelessWidget {
   const GoogleAccountActions({super.key});
@@ -13,46 +77,42 @@ class GoogleAccountActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final sync = context.watch<CloudSyncController?>();
     if (sync == null) return const SizedBox.shrink();
-    final account = sync.isConnected ? sync.account : null;
+    final l10n = AppLocalizations.of(context)!;
+    final hasCachedAccounts = sync.hasCachedGoogleAccounts;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (account == null)
-            GoogleSignInButton(onPressed: sync.busy ? null : sync.connect)
+          if (!sync.hasGoogleWorkspace)
+            Center(
+              child: GoogleSignInButton(
+                onPressed: sync.busy
+                    ? null
+                    : hasCachedAccounts
+                    ? () => showWorkspaceAccounts(context, sync)
+                    : sync.connect,
+              ),
+            )
           else
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.account_circle_outlined),
-              title: const Text('Google account'),
-              subtitle: Text(account.email, overflow: TextOverflow.ellipsis),
-              trailing: PopupMenuButton<_AccountAction>(
-                tooltip: 'Google account options',
-                enabled: !sync.busy,
-                onSelected: (action) {
-                  switch (action) {
-                    case _AccountAction.reconnect:
-                      sync.connect();
-                    case _AccountAction.signOut:
-                      sync.disconnect();
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: _AccountAction.reconnect,
-                    child: Text('Reconnect'),
-                  ),
-                  PopupMenuItem(
-                    value: _AccountAction.signOut,
-                    child: Text('Sign out'),
-                  ),
-                ],
+              leading: const Icon(Icons.switch_account_outlined),
+              title: Text(l10n.switchAccount),
+              subtitle: Text(
+                sync.profile.email ?? l10n.googleAccount,
+                overflow: TextOverflow.ellipsis,
               ),
+              onTap: sync.busy
+                  ? null
+                  : () => showWorkspaceAccounts(context, sync),
             ),
           if (sync.accountBusy) const LinearProgressIndicator(),
           if (sync.accountMessage case final message?)
-            Text(message, style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              cloudSyncMessage(context, message),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
         ],
       ),
     );

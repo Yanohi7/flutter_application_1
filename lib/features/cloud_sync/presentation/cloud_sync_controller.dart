@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/database_helper.dart';
 import '../../../core/security/private_content_store.dart';
+import '../../profile/data/profile_store.dart';
+import '../data/guest_workspace_transfer.dart';
 import '../data/datasources/desktop_google_account.dart';
 import '../data/datasources/drive_workspace_store.dart';
 import '../data/datasources/google_account_remote_datasource.dart';
@@ -17,21 +20,20 @@ import '../data/workspace_sync.dart';
 
 class CloudSyncController extends ChangeNotifier {
   CloudSyncController(
-    DatabaseHelper database, {
+    this._database, {
     required bool testWorkspace,
     String? testWorkspaceName,
-  }) : _key = testWorkspace
+  }) : _privateNamespace = testWorkspaceName,
+       _baseKey = testWorkspace
            ? 'entries_test_drive_v1_${testWorkspaceName ?? 'default'}'
            : 'entries_drive_v1' {
     _drive = DriveWorkspaceStore(
-      _google.authorizationHeaders,
+      () {
+        if (!isConnected) throw StateError('Sign in with Google first.');
+        return _google.authorizationHeaders();
+      },
       testWorkspace: testWorkspace,
       testWorkspaceName: testWorkspaceName,
-    );
-    _sync = WorkspaceSync(
-      LocalWorkspaceSnapshot(database),
-      _drive,
-      getApplicationSupportDirectory,
     );
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) {
@@ -43,17 +45,43 @@ class CloudSyncController extends ChangeNotifier {
     PrivateContentStore.passwordRevision.addListener(workspaceChanged);
   }
 
-  final String _key;
+  final String _baseKey;
+  final String? _privateNamespace;
+  final DatabaseHelper _database;
+  late DatabaseHelper activeDatabase;
+  late ProfileStore profile;
+  late int _originalUserId;
+  late int activeUserId;
+  final _retiredProfiles = <ProfileStore>{};
+  final workspaceRevision = ValueNotifier<int>(0);
+  bool hasGoogleWorkspace = false;
+  bool hasCachedGoogleAccounts = false;
+  bool guestTransferAvailable = false;
+  bool initialSyncPending = false;
+  Future<List<LocalUserAccount>> localAccounts() =>
+      _database.getLocalAccounts();
+  GuestWorkspaceTransfer get _transfer =>
+      GuestWorkspaceTransfer(_database, activeDatabase);
+
+  String get _key => _owner != null ? '${_baseKey}_$_owner' : _baseKey;
   final _google = GoogleAccountRemoteDataSource();
   late final DriveWorkspaceStore _drive;
-  late final WorkspaceSync _sync;
+  WorkspaceSync get _sync => WorkspaceSync(
+    LocalWorkspaceSnapshot(activeDatabase),
+    _drive,
+    getApplicationSupportDirectory,
+  );
+
   late final AppLifecycleListener _lifecycle;
   late final Timer _poll;
   final _preferences = SharedPreferencesAsync();
   Timer? _scheduled;
   bool _foreground = true;
+  bool _loaded = false;
   bool _workspaceVisible = false;
   bool _profileVisible = false;
+  bool _reconnectWhenOnline = false;
+  bool needsGoogleAccess = false;
   bool _disposed = false;
   String? _owner;
   String? _digest;
@@ -70,53 +98,193 @@ class CloudSyncController extends ChangeNotifier {
   WorkspaceConflict? conflict;
   WorkspaceGoogleAccount? get account => _google.account;
   bool get isConnected => account != null && account!.id == _owner;
-  bool get _canAuto =>
-      autoSync &&
-      isConnected &&
+  bool get _canSyncHere =>
+      hasGoogleWorkspace &&
       _foreground &&
-      _workspaceVisible &&
-      conflict == null &&
+      (_workspaceVisible || _profileVisible) &&
       !_disposed;
+  bool get _canAuto => autoSync && _canSyncHere && conflict == null;
 
-  Future<void> load() => _run(() async {
-    final stored = await _preferences.getString(_key);
-    if (stored != null) {
-      final data = jsonDecode(stored) as Map<String, dynamic>;
-      _owner = data['owner'] as String?;
-      _digest = data['digest'] as String?;
-      lastSync = DateTime.tryParse(data['lastSync'] as String? ?? '');
-      autoSync = data['auto'] != false;
+  Future<void> load() async {
+    final saved = await _database.initActiveUser();
+    final accounts = await localAccounts();
+    _originalUserId = accounts
+        .map((account) => account.id)
+        .reduce((first, next) => first < next ? first : next);
+    final legacy = await _readPreferences(_baseKey);
+    var id = saved;
+    if (legacy != null) {
+      final owner = legacy['owner'] as String?;
+      if (owner != null) {
+        id = await _database.migrateLegacyGoogleOwner(owner);
+        final key = '${_baseKey}_$owner';
+        if (await _preferences.getString(key) == null) {
+          await _preferences.setString(key, jsonEncode(legacy));
+        }
+      }
     }
-    if (_owner != null &&
-        (await _google.restore())?.id != _owner &&
-        account != null) {
-      await _google.signOut();
-    }
-  }).whenComplete(_scheduleAuto);
+    final migratedAccounts = await localAccounts();
+    hasCachedGoogleAccounts = migratedAccounts.any(
+      (account) => !account.isGuest,
+    );
+    final account = migratedAccounts.firstWhere((account) => account.id == id);
+    await _activate(account, initial: true);
+    _loaded = true;
+    if (legacy?['owner'] != null) await _preferences.remove(_baseKey);
+  }
 
-  Future<void> connect() => _run(() async {
-    final user = await _google.signIn();
-    if (_owner != null && _owner != user.id) {
-      await _google.signOut();
-      throw const DriveSyncException(
-        'This workspace is linked to another Google account. Reconnect that account.',
-      );
-    }
-    final previousOwner = _owner;
-    _owner = user.id;
+  Future<Map<String, dynamic>?> _readPreferences(String key) async {
+    final stored = await _preferences.getString(key);
+    if (stored == null) return null;
     try {
-      await _save();
+      final decoded = jsonDecode(stored);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<void> _activate(
+    LocalUserAccount account, {
+    bool initial = false,
+  }) async {
+    final database = DatabaseHelper.forUser(_database, account.id);
+    final nextProfile = ProfileStore(database);
+    Map<String, dynamic>? data;
+    var canTransferGuestEntries = false;
+    try {
+      await nextProfile.load();
+      final owner = account.googleAccountId;
+      final key = owner == null ? _baseKey : '${_baseKey}_$owner';
+      data = await _readPreferences(key);
+      if (owner != null) {
+        canTransferGuestEntries = await GuestWorkspaceTransfer(
+          _database,
+          database,
+        ).isAvailable();
+      }
+      await _database.switchUser(account.id);
     } catch (_) {
-      _owner = previousOwner;
+      nextProfile.dispose();
       rethrow;
     }
-  }, accountAction: true).whenComplete(_scheduleAuto);
-
-  Future<void> disconnect() => _run(() async {
-    await _google.signOut();
+    if (!initial) {
+      final previous = profile;
+      previous.removeListener(workspaceChanged);
+      _retiredProfiles.add(previous);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_retiredProfiles.remove(previous)) previous.dispose();
+      });
+    }
     _scheduled?.cancel();
+    activeUserId = account.id;
+    activeDatabase = database;
+    profile = nextProfile..addListener(workspaceChanged);
+    PrivateContentStore.workspaceNamespace = account.id == _originalUserId
+        ? _privateNamespace
+        : [?_privateNamespace, 'account_${account.id}'].join('_');
+    _owner = account.googleAccountId;
+    _reconnectWhenOnline = false;
+    needsGoogleAccess = false;
+    hasGoogleWorkspace = _owner != null;
+    _digest = data?['digest'] as String?;
+    lastSync = DateTime.tryParse(data?['lastSync'] as String? ?? '');
+    autoSync = data?['auto'] != false;
+    initialSyncPending = hasGoogleWorkspace && autoSync;
+    _syncedGeneration = null;
+    _localGeneration = 0;
     conflict = null;
-  }, accountAction: true);
+    guestTransferAvailable = canTransferGuestEntries;
+    message = null;
+    accountMessage = null;
+    if (!initial) {
+      _workspaceVisible = false;
+      _profileVisible = false;
+      workspaceRevision.value++;
+    }
+  }
+
+  Future<void> connect({Future<void> Function()? beforeSwitch}) =>
+      _run(() async {
+        if (profile.saving) return;
+        final user = await _google.signIn(chooseAccount: true);
+        final local = await _database.getOrCreateGoogleAccount(
+          googleAccountId: user.id,
+          email: user.email,
+        );
+        hasCachedGoogleAccounts = true;
+        await beforeSwitch?.call();
+        if (activeUserId != local.id) {
+          await _activate(local);
+        } else {
+          await profile.load();
+        }
+      }, accountAction: true).whenComplete(() => _scheduleAuto());
+
+  Future<void> selectAccount(LocalUserAccount account) async {
+    if (account.id == activeUserId || busy || profile.saving) return;
+    await _run(() async {
+      await _activate(account);
+      if (account.isGuest) return;
+      _reconnectWhenOnline = true;
+    }, accountAction: true);
+    _scheduleAuto();
+  }
+
+  Future<bool> _online() async {
+    try {
+      return (await InternetAddress.lookup('www.googleapis.com')
+              .timeout(const Duration(seconds: 3)))
+          .isNotEmpty;
+    } on SocketException {
+      return false;
+    } on TimeoutException {
+      return false;
+    }
+  }
+
+  Future<bool> _authorize({required bool interactive}) async {
+    final owner = _owner;
+    if (owner == null) return false;
+    try {
+      final alreadyConnected = isConnected;
+      final restored = alreadyConnected
+          ? account
+          : await _google.restore(
+              expectedId: owner,
+              expectedEmail: profile.email,
+            );
+      if (restored?.id == owner &&
+          await _google.ensureDriveAccess(
+            expectedId: owner,
+            justRestored: !alreadyConnected,
+          )) {
+        if (profile.email != restored!.email) {
+          await _database.getOrCreateGoogleAccount(
+            googleAccountId: owner,
+            email: restored.email,
+          );
+          await profile.load();
+        }
+        return true;
+      }
+    } on StateError {
+      // Google needs to ask for Drive access again.
+    } on GoogleSignInException {
+      // An expired or missing session can be renewed interactively.
+    }
+    if (!interactive) return false;
+    final user = await _google.signIn(
+      expectedId: owner,
+      expectedEmail: profile.email,
+    );
+    await _database.getOrCreateGoogleAccount(
+      googleAccountId: user.id,
+      email: user.email,
+    );
+    await profile.load();
+    return isConnected;
+  }
 
   Future<void> setAutoSync(bool enabled) => _run(() async {
     final previous = autoSync;
@@ -136,19 +304,54 @@ class CloudSyncController extends ChangeNotifier {
     _scheduleAuto();
   }
 
-  void setProfileVisible(bool visible) => _profileVisible = visible;
+  void setProfileVisible(bool visible) {
+    if (_profileVisible == visible) return;
+    _profileVisible = visible;
+    _scheduleAuto();
+  }
 
   void workspaceChanged() {
     _localGeneration++;
     _scheduleAuto();
   }
 
-  Future<void> syncNow({bool automatic = false}) => _run(() async {
-    if (!isConnected || (automatic && !_canAuto)) return;
+  Future<void> syncNow({bool automatic = false}) =>
+      _run(() => _syncWorkspace(automatic: automatic));
+
+  Future<void> _syncWorkspace({required bool automatic}) async {
+    if (!hasGoogleWorkspace ||
+        (automatic && !_canAuto && !(_canSyncHere && _reconnectWhenOnline))) {
+      return;
+    }
+    initialSyncPending = false;
+    if (!isConnected && !await _online()) {
+      if (automatic) return;
+      throw const DriveSyncException(
+        'Check your internet connection and try again.',
+      );
+    }
+    final interactive = !automatic || (_foreground && _reconnectWhenOnline);
+    if (interactive) _reconnectWhenOnline = false;
+    final bool authorized;
+    try {
+      authorized = await _authorize(interactive: interactive);
+    } on GoogleSignInException {
+      needsGoogleAccess = true;
+      rethrow;
+    }
+    needsGoogleAccess = !authorized;
+    if (!authorized) return;
+    if (automatic && !_canAuto) return;
     final generation = _localGeneration;
+    final transferPending = await _transfer.isPending;
+    String? confirmedContent;
     final result = await _sync.sync(
+      onConfirmed: transferPending
+          ? (content) => confirmedContent = content
+          : null,
       previousDigest: _digest,
-      localKnownUnchanged: automatic && generation == _syncedGeneration,
+      localKnownUnchanged:
+          automatic && generation == _syncedGeneration && !transferPending,
       applyDownload: (apply) async {
         if (automatic && !_canAuto) throw const _DeferredSync();
         if (!automatic &&
@@ -180,45 +383,100 @@ class CloudSyncController extends ChangeNotifier {
       rethrow;
     }
     conflict = null;
+    if (confirmedContent case final snapshot?) {
+      await _transfer.finish(snapshot);
+    }
+    guestTransferAvailable = await _transfer.isAvailable();
     message = switch (result.result) {
       WorkspaceSyncResult.empty => 'There are no entries to sync yet.',
       WorkspaceSyncResult.current => 'Entries are up to date.',
       WorkspaceSyncResult.uploaded => 'Entries uploaded to Google Drive.',
       WorkspaceSyncResult.downloaded => 'Entries downloaded from Google Drive.',
     };
-  });
+  }
 
-  Future<void> keepBothCopies() => _run(() async {
-    final pending = conflict;
-    if (pending == null || !isConnected || !_profileVisible || !_foreground) {
-      return;
-    }
-    applyingRemote = true;
-    _notify();
-    try {
-      final digest = await _sync.keepBoth(pending);
-      _digest = digest;
-      lastSync = DateTime.now().toUtc();
-      downloadedCount++;
-      conflict = null;
-      await _save();
-      message = 'Both sets of entries are now synced. See Google Drive copies for imported entries.';
-    } finally {
-      applyingRemote = false;
-      _scheduleAuto();
-    }
-  });
+  Future<void> keepBothCopies({PrivateBackupPassword? requestPassword}) =>
+      _run(() async {
+        final pending = conflict;
+        if (pending == null || !_profileVisible || !_foreground) {
+          return;
+        }
+        if (!await _authorize(interactive: true)) {
+          needsGoogleAccess = true;
+          return;
+        }
+        needsGoogleAccess = false;
+        try {
+          String? confirmedContent;
+          _digest = await _sync.keepBoth(
+            pending,
+            requestPassword: requestPassword,
+            beforeApply: () {
+              if (!_foreground) throw const PrivateMergeCanceled();
+              applyingRemote = true;
+              _notify();
+            },
+            onConfirmed: (content) => confirmedContent = content,
+          );
+          lastSync = DateTime.now().toUtc();
+          downloadedCount++;
+          conflict = null;
+          await _save();
+          if (confirmedContent case final snapshot?) {
+            await _transfer.finish(snapshot);
+          }
+          guestTransferAvailable = await _transfer.isAvailable();
+          message = 'Both sets of entries are now synced. See Google Drive copies for imported entries.';
+        } finally {
+          applyingRemote = false;
+          _scheduleAuto();
+        }
+      });
+
+  void scheduleInitialSync() => _scheduleAuto();
+
+  Future<String?> transferGuestEntries(String folderName) async {
+    String? failure;
+    await _run(() async {
+      if (!hasGoogleWorkspace || !guestTransferAvailable || profile.saving) {
+        return;
+      }
+      // Reconcile existing Drive data before adding entries from this device.
+      await _syncWorkspace(automatic: false);
+      if (!guestTransferAvailable || !isConnected) return;
+
+      var imported = false;
+      applyingRemote = true;
+      _notify();
+      try {
+        imported = await _transfer.prepare(folderName);
+        if (imported) {
+          guestTransferAvailable = false;
+          _localGeneration++;
+          downloadedCount++;
+        }
+      } finally {
+        applyingRemote = false;
+      }
+      if (imported) await _syncWorkspace(automatic: false);
+    }, onError: (error) => failure = error);
+    return failure;
+  }
 
   void _scheduleAuto() {
     _scheduled?.cancel();
-    if (!_canAuto) return;
-    _scheduled = Timer(const Duration(seconds: 4), () {
-      if (busy) {
-        _scheduleAuto();
-      } else {
-        unawaited(syncNow(automatic: true));
-      }
-    });
+    if (!_canAuto && !(_canSyncHere && _reconnectWhenOnline)) return;
+    final immediate = !busy && (initialSyncPending || _reconnectWhenOnline);
+    _scheduled = Timer(
+      immediate ? Duration.zero : const Duration(seconds: 4),
+      () {
+        if (busy) {
+          _scheduleAuto();
+        } else {
+          unawaited(syncNow(automatic: true));
+        }
+      },
+    );
   }
 
   Future<void> _save() => _preferences.setString(
@@ -234,6 +492,7 @@ class CloudSyncController extends ChangeNotifier {
   Future<void> _run(
     Future<void> Function() action, {
     bool accountAction = false,
+    ValueChanged<String>? onError,
   }) async {
     if (busy || _disposed) return;
     busy = true;
@@ -249,6 +508,8 @@ class CloudSyncController extends ChangeNotifier {
       await action();
     } on _DeferredSync {
       _scheduleAuto();
+    } on PrivateMergeCanceled {
+      // Keep the existing conflict and both copies unchanged.
     } on GoogleSignInException catch (error) {
       errorMessage = error.code == GoogleSignInExceptionCode.canceled
           ? 'Google sign-in was canceled.'
@@ -258,6 +519,12 @@ class CloudSyncController extends ChangeNotifier {
       errorMessage = error.message;
     } on DriveSyncException catch (error) {
       errorMessage = error.message;
+      if (errorMessage ==
+              'Google Drive access expired. Reconnect your Google account.' ||
+          errorMessage ==
+              'Google Drive access is required. Reconnect and allow access.') {
+        needsGoogleAccess = true;
+      }
     } on TimeoutException {
       errorMessage = 'Google took too long to respond. Try again.';
     } on http.ClientException {
@@ -275,6 +542,7 @@ class CloudSyncController extends ChangeNotifier {
       } else if (errorMessage != null) {
         message = errorMessage;
       }
+      if (errorMessage != null) onError?.call(errorMessage);
       accountBusy = false;
       busy = false;
       _notify();
@@ -294,6 +562,12 @@ class CloudSyncController extends ChangeNotifier {
     _lifecycle.dispose();
     _drive.close();
     _google.close();
+    if (_loaded) profile.dispose();
+    for (final previous in _retiredProfiles) {
+      previous.dispose();
+    }
+    _retiredProfiles.clear();
+    workspaceRevision.dispose();
     super.dispose();
   }
 }

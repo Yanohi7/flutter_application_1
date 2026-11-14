@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -27,31 +29,32 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   bool _busy = false;
   CloudSyncController? _sync;
+  int? _userId;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _sync = context.read<CloudSyncController?>();
+    _userId = context.read<ProfileStore?>()?.userId;
     _sync?.setProfileVisible(ModalRoute.isCurrentOf(context) ?? true);
   }
 
   @override
   void dispose() {
-    _sync?.setProfileVisible(false);
+    if (_sync?.activeUserId == _userId) {
+      _sync?.setProfileVisible(false);
+    }
     super.dispose();
   }
 
   Future<void> _openPhoto(ProfileStore profile) async {
     final avatar = profile.avatar;
-    if (avatar == null) {
-      await _changePhoto(profile);
-      return;
-    }
+    if (avatar == null) return;
     final original = profile.originalPath;
     final action = await showDialog<_PhotoAction>(
       context: context,
       builder: (context) => AppDialog(
-        title: 'Profile photo',
+        title: AppLocalizations.of(context)!.profilePhoto,
         onClose: () => Navigator.pop(context),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -90,14 +93,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 OutlinedButton.icon(
                   onPressed: () => Navigator.pop(context, _PhotoAction.change),
                   icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Change photo'),
+                  label: Text(AppLocalizations.of(context)!.changePhoto),
                 ),
                 TextButton(
                   style: TextButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.error,
                   ),
                   onPressed: () => Navigator.pop(context, _PhotoAction.remove),
-                  child: const Text('Remove photo'),
+                  child: Text(AppLocalizations.of(context)!.removePhoto),
                 ),
               ],
             ),
@@ -109,8 +112,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (action == _PhotoAction.remove) {
       final confirmed = await confirmPhotoRemoval(
         context,
-        title: 'Remove profile photo?',
-        message: 'Your profile will show the default avatar.',
+        title: AppLocalizations.of(context)!.removeProfilePhoto,
+        message: AppLocalizations.of(context)!
+            .yourProfileWillShowTheDefaultAvatar,
       );
       if (!confirmed || !mounted) return;
     }
@@ -125,9 +129,9 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
       final file = await openFile(
-        acceptedTypeGroups: const [
+        acceptedTypeGroups: [
           XTypeGroup(
-            label: 'Photos',
+            label: AppLocalizations.of(context)!.photos,
             extensions: ['jpg', 'jpeg', 'png', 'webp'],
             mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
             uniformTypeIdentifiers: [
@@ -140,7 +144,9 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       if (file == null || !mounted) return;
       if (await file.length() > 20 * 1024 * 1024) {
-        throw const FormatException('Choose a photo smaller than 20 MB.');
+        throw FormatException(
+          AppLocalizations.of(context)!.chooseAPhotoSmallerThan20Mb,
+        );
       }
       final bytes = await file.readAsBytes();
       final codec = await ui
@@ -148,8 +154,9 @@ class _ProfilePageState extends State<ProfilePage> {
             await ui.ImmutableBuffer.fromUint8List(bytes),
             getTargetSize: (width, height) {
               if (width > 16000 || height > 16000) {
-                throw const FormatException(
-                  'Choose a photo up to 16,000 pixels on each side.',
+                throw FormatException(
+                  AppLocalizations.of(context)!
+                      .chooseAPhotoUpTo16000PixelsOnEachSide,
                 );
               }
               return width >= height
@@ -184,7 +191,7 @@ class _ProfilePageState extends State<ProfilePage> {
             content: Text(
               error is FormatException
                   ? error.message
-                  : 'Could not update your photo.',
+                  : AppLocalizations.of(context)!.couldNotUpdateYourPhoto,
             ),
           ),
         );
@@ -194,6 +201,41 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _editName(ProfileStore profile) async {
+    final controller = TextEditingController(text: profile.name);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(AppLocalizations.of(context)!.profile),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: AppLocalizations.of(context)!.editProfileName,
+            hintText: profile.isGuest
+                ? AppLocalizations.of(context)!.guest
+                : (profile.email ?? ''),
+          ),
+          onSubmitted: (_) => Navigator.pop(dialogContext, true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(AppLocalizations.of(context)!.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(AppLocalizations.of(context)!.save),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && controller.text.trim().isNotEmpty) {
+      await profile.setName(controller.text.trim());
+    }
+    controller.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: appPreferences,
@@ -201,7 +243,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final theme = Theme.of(context);
       final profile = context.watch<ProfileStore?>();
       return Scaffold(
-        appBar: AppBar(title: const Text('Profile')),
+        appBar: AppBar(title: Text(AppLocalizations.of(context)!.profile)),
         body: SafeArea(
           top: false,
           child: Center(
@@ -216,40 +258,126 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: _busy || _sync == null
+                                ? null
+                                : () => showWorkspaceAccounts(context, _sync!),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4,
+                                horizontal: 2,
+                              ),
+                              child: Row(
+                                children: [
+                                  if (profile?.avatar == null)
+                                    const ProfileAvatar(diameter: 56)
+                                  else
+                                    Tooltip(
+                                      message: AppLocalizations.of(context)!
+                                          .viewProfilePhoto,
+                                      child: InkWell(
+                                        customBorder: const CircleBorder(),
+                                        onTap: _busy || profile == null
+                                            ? null
+                                            : () => _openPhoto(profile),
+                                        child: const ProfileAvatar(
+                                          diameter: 56,
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                profile?.name ??
+                                                    AppLocalizations.of(
+                                                      context,
+                                                    )!.guest,
+                                                style: theme
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (_sync != null) ...[
+                                              const SizedBox(width: 4),
+                                              const Icon(
+                                                Icons.arrow_drop_down,
+                                                size: 24,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          profile?.isGuest == true
+                                              ? AppLocalizations.of(context)!
+                                                    .entriesSavedOnThisDevice
+                                              : (profile?.email ??
+                                                    AppLocalizations.of(
+                                                      context,
+                                                    )!.googleAccount),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
                             children: [
-                              Tooltip(
-                                message: profile?.avatar == null
-                                    ? 'Add profile photo'
-                                    : 'View profile photo',
-                                child: InkWell(
-                                  customBorder: const CircleBorder(),
-                                  onTap: _busy || profile == null
-                                      ? null
-                                      : () => _openPhoto(profile),
-                                  child: const ProfileAvatar(diameter: 56),
+                              TextButton.icon(
+                                onPressed: _busy || profile == null
+                                    ? null
+                                    : () => _editName(profile),
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                label: Text(
+                                  AppLocalizations.of(context)!.editProfileName,
                                 ),
                               ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      profile?.name ?? 'Guest',
-                                      style: theme.textTheme.titleMedium,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Entries saved on this device',
-                                      style: theme.textTheme.bodySmall,
-                                    ),
-                                  ],
+                              TextButton.icon(
+                                onPressed: _busy || profile == null
+                                    ? null
+                                    : () => _changePhoto(profile),
+                                icon: Icon(
+                                  profile?.avatar == null
+                                      ? Icons.add_a_photo_outlined
+                                      : Icons.photo_library_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  profile?.avatar == null
+                                      ? AppLocalizations.of(context)!
+                                            .addProfilePhoto
+                                      : AppLocalizations.of(context)!
+                                            .changePhoto,
                                 ),
                               ),
                             ],
                           ),
-                          const GoogleAccountActions(),
+                          if (_sync != null && profile?.isGuest != false)
+                            const GoogleAccountActions(),
                         ],
                       ),
                     ),
@@ -263,12 +391,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         color: theme.colorScheme.primary,
                       ),
                       title: Text(
-                        appPreferences.isPremium ? 'Premium' : 'Free plan',
+                        appPreferences.isPremium
+                            ? 'Premium'
+                            : AppLocalizations.of(context)!.freePlan,
                       ),
                       subtitle: Text(
                         appPreferences.isPremium
-                            ? 'No ads · All color themes unlocked'
-                            : 'Explore Premium',
+                            ? AppLocalizations.of(context)!
+                                  .noAdsAllColorThemesUnlocked
+                            : AppLocalizations.of(context)!.explorePremium,
                       ),
                       trailing: const Icon(Icons.chevron_right, size: 20),
                       onTap: () => showPremiumDialog(context),

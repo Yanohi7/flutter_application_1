@@ -1,5 +1,6 @@
 // Display an expandable category tree with create, rename, move and delete actions
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -54,7 +55,7 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Manage Categories')),
+    appBar: AppBar(title: Text(AppLocalizations.of(context)!.manageCategories)),
     body: SafeArea(
       top: false,
       child: Center(
@@ -71,7 +72,9 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                   child: OutlinedButton.icon(
                     onPressed: context.read<CategoryCubit>().loadCategories,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Retry loading categories'),
+                    label: Text(
+                      AppLocalizations.of(context)!.retryLoadingCategories,
+                    ),
                   ),
                 );
               }
@@ -107,7 +110,9 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                   OutlinedButton.icon(
                     onPressed: state.isSaving ? null : () => _form(),
                     icon: const Icon(Icons.add),
-                    label: const Text('Create New Category'),
+                    label: Text(
+                      AppLocalizations.of(context)!.createNewCategory,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Card(
@@ -121,8 +126,8 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                             ),
                             leading: IconButton(
                               tooltip: _expanded.contains(row.$1.id)
-                                  ? 'Collapse'
-                                  : 'Expand',
+                                  ? AppLocalizations.of(context)!.collapse
+                                  : AppLocalizations.of(context)!.expand,
                               icon: Icon(
                                 children[row.$1.id]?.isNotEmpty == true
                                     ? (_expanded.contains(row.$1.id)
@@ -143,7 +148,10 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                                 ? null
                                 : () => CategoryActions.show(context, row.$1),
                             subtitle: row.$1.isDefault
-                                ? const Text('Default category')
+                                ? Text(
+                                    AppLocalizations.of(context)!
+                                        .defaultCategory,
+                                  )
                                 : null,
                             onTap: () {
                               context.read<CategoryCubit>().selectCategory(
@@ -155,7 +163,8 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  tooltip: 'Add subcategory',
+                                  tooltip: AppLocalizations.of(context)!
+                                      .addSubcategory,
                                   icon: const Icon(Icons.add, size: 19),
                                   onPressed: state.isSaving
                                       ? null
@@ -168,14 +177,19 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                                       ? _form(category: row.$1)
                                       : _delete(row.$1),
                                   itemBuilder: (_) => [
-                                    const PopupMenuItem(
+                                    PopupMenuItem(
                                       value: 'edit',
-                                      child: Text('Rename / Move'),
+                                      child: Text(
+                                        AppLocalizations.of(context)!
+                                            .renameMove,
+                                      ),
                                     ),
                                     if (!row.$1.isDefault)
-                                      const PopupMenuItem(
+                                      PopupMenuItem(
                                         value: 'delete',
-                                        child: Text('Delete'),
+                                        child: Text(
+                                          AppLocalizations.of(context)!.delete,
+                                        ),
                                       ),
                                   ],
                                 ),

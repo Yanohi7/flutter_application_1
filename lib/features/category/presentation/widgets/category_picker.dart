@@ -1,5 +1,5 @@
 // Select a category from a searchable expandable tree and distinguish cancellation from top level
-
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/app_dialog.dart';
@@ -9,7 +9,6 @@ import '../../domain/entities/entry_category.dart';
 class CategorySelection {
   final EntryCategory? category;
   const CategorySelection(this.category);
-
   int? get id => category?.id;
 }
 
@@ -18,7 +17,7 @@ Future<CategorySelection?> showCategoryPicker({
   required List<EntryCategory> categories,
   int? selectedId,
   bool allowTopLevel = false,
-  String title = 'Choose category',
+  String? title,
   Future<EntryCategory?> Function(BuildContext context)? onCreateCategory,
 }) {
   return showAppDialog<CategorySelection>(
@@ -27,7 +26,7 @@ Future<CategorySelection?> showCategoryPicker({
       categories: List.unmodifiable(categories),
       selectedId: selectedId,
       allowTopLevel: allowTopLevel,
-      title: title,
+      title: title ?? AppLocalizations.of(context)!.chooseCategory,
       onCreateCategory: onCreateCategory,
     ),
   );
@@ -39,7 +38,6 @@ class _CategoryPicker extends StatefulWidget {
   final bool allowTopLevel;
   final String title;
   final Future<EntryCategory?> Function(BuildContext context)? onCreateCategory;
-
   const _CategoryPicker({
     required this.categories,
     required this.selectedId,
@@ -47,7 +45,6 @@ class _CategoryPicker extends StatefulWidget {
     required this.title,
     required this.onCreateCategory,
   });
-
   @override
   State<_CategoryPicker> createState() => _CategoryPickerState();
 }
@@ -57,7 +54,6 @@ class _CategoryPickerState extends State<_CategoryPicker> {
   final _search = TextEditingController();
   final _scroll = ScrollController();
   final _expanded = <int>{};
-
   @override
   void dispose() {
     _search.dispose();
@@ -92,7 +88,6 @@ class _CategoryPickerState extends State<_CategoryPicker> {
           : null;
       children.putIfAbsent(parent, () => []).add(category);
     }
-
     // Search reveals matching nodes with their ancestors, without changing
     // The user's collapsed/expanded choices when the search is cleared
     final included = <int>{};
@@ -107,7 +102,6 @@ class _CategoryPickerState extends State<_CategoryPicker> {
         }
       }
     }
-
     final rows = <({EntryCategory category, int depth, bool hasChildren})>[];
     final visited = <int>{};
     // Flatten visible tree nodes into rows with indentation and guard against repeated IDs
@@ -129,7 +123,6 @@ class _CategoryPickerState extends State<_CategoryPicker> {
     for (final root in children[null] ?? const <EntryCategory>[]) {
       append(root, 0);
     }
-
     final topLevel = widget.allowTopLevel && query.isEmpty;
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -145,7 +138,7 @@ class _CategoryPickerState extends State<_CategoryPicker> {
               ListTile(
                 title: Text(widget.title),
                 trailing: IconButton(
-                  tooltip: 'Close',
+                  tooltip: AppLocalizations.of(context)!.close,
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
                 ),
@@ -155,12 +148,13 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                 child: TextField(
                   controller: _search,
                   decoration: InputDecoration(
-                    hintText: 'Search categories',
+                    hintText: AppLocalizations.of(context)!.searchCategories,
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: query.isEmpty
                         ? null
                         : IconButton(
-                            tooltip: 'Clear category search',
+                            tooltip: AppLocalizations.of(context)!
+                                .clearCategorySearch,
                             onPressed: () => setState(_search.clear),
                             icon: const Icon(Icons.clear),
                           ),
@@ -176,15 +170,19 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                     child: OutlinedButton.icon(
                       onPressed: _creating ? null : _create,
                       icon: const Icon(Icons.add),
-                      label: const Text('Create New Category'),
+                      label: Text(
+                        AppLocalizations.of(context)!.createNewCategory,
+                      ),
                     ),
                   ),
                 ),
               Flexible(
                 child: rows.isEmpty && !topLevel
-                    ? const Padding(
+                    ? Padding(
                         padding: EdgeInsets.all(24),
-                        child: Text('No categories found'),
+                        child: Text(
+                          AppLocalizations.of(context)!.noCategoriesFound,
+                        ),
                       )
                     : Scrollbar(
                         controller: _scroll,
@@ -196,7 +194,9 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                           itemBuilder: (context, index) {
                             if (topLevel && index == 0) {
                               return ListTile(
-                                title: const Text('None (top level)'),
+                                title: Text(
+                                  AppLocalizations.of(context)!.noneTopLevel,
+                                ),
                                 selected: widget.selectedId == null,
                                 onTap: () => _select(null),
                               );
@@ -216,18 +216,22 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                               });
                             }
 
+                            final selectLabel = AppLocalizations.of(context)!
+                                .select;
                             return ListTile(
                               key: ValueKey('category-option-${category.id}'),
                               contentPadding: EdgeInsets.only(
-                                left: 16 + row.depth.clamp(0, 6) * 16.0,
+                                left: 12 + row.depth.clamp(0, 6) * 10.0,
                                 right: 8,
                               ),
                               selected: category.id == widget.selectedId,
                               leading: row.hasChildren
                                   ? IconButton(
                                       tooltip: expanded
-                                          ? 'Collapse ${category.name}'
-                                          : 'Expand ${category.name}',
+                                          ? AppLocalizations.of(context)!
+                                                .collapse
+                                          : AppLocalizations.of(context)!
+                                                .expand,
                                       onPressed: query.isEmpty ? toggle : null,
                                       icon: Icon(
                                         expanded
@@ -242,9 +246,20 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                               onTap: row.hasChildren
                                   ? toggle
                                   : () => _select(category),
-                              trailing: TextButton(
-                                onPressed: () => _select(category),
-                                child: const Text('Select'),
+                              trailing: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 88),
+                                child: TextButton(
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                  ),
+                                  onPressed: () => _select(category),
+                                  child: Text(
+                                    selectLabel,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
                               ),
                             );
                           },

@@ -15,42 +15,71 @@ class ProfileStore extends ChangeNotifier {
   Uint8List? _avatar;
   String? _originalPath;
   String _name = 'Guest';
+  String? _email;
+  bool _isGuest = true;
+  int? _userId;
   bool _saving = false;
+  bool _disposed = false;
 
+  DatabaseHelper get database => _database;
   Uint8List? get avatar => _avatar;
   String? get originalPath => _originalPath;
   String get name => _name;
+  String? get email => _email;
+  bool get isGuest => _isGuest;
+  int? get userId => _userId;
   bool get saving => _saving;
 
   Future<void> load() async {
     await _database.ensureDefaultCategory();
+    final id = await _database.workspaceUserId();
+    _userId = id;
     final database = await _database.database;
-    final rows = await database.rawQuery('''
-      SELECT profiles.*
-      FROM users LEFT JOIN profiles ON profiles.user_id = users.id
-      ORDER BY users.id LIMIT 1
-    ''');
-    if (rows.isEmpty) return;
-    final row = rows.single;
-    _name = row['display_name'] as String? ?? 'Guest';
-    _avatar = row['avatar_image'] as Uint8List?;
-    _originalPath = row['avatar_original_path'] as String?;
-    notifyListeners();
+    final userRows = await database.query(
+      'users',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (userRows.isNotEmpty) {
+      _email = userRows.single['google_email'] as String?;
+      _isGuest = userRows.single['google_account_id'] == null;
+    } else {
+      _email = null;
+      _isGuest = true;
+    }
+    final rows = await database.query(
+      'profiles',
+      where: 'user_id = ?',
+      whereArgs: [id],
+    );
+    if (rows.isEmpty) {
+      _name = _isGuest ? 'Guest' : (_email ?? 'Google User');
+      _avatar = null;
+      _originalPath = null;
+    } else {
+      final row = rows.single;
+      final savedName = row['display_name'] as String?;
+      _name = !_isGuest && (savedName == null || savedName == 'Guest')
+          ? (_email ?? 'Google account')
+          : (savedName ?? 'Guest');
+      _avatar = row['avatar_image'] as Uint8List?;
+      _originalPath = row['avatar_original_path'] as String?;
+    }
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> setAvatar(Uint8List? bytes, {Uint8List? original}) async {
     if (_saving) return;
     _saving = true;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
     String? staged;
     try {
       if (bytes != null && original != null) {
         staged = await writeOriginal(await _storageRoot(), original);
       }
       final database = await _database.database;
+      final userId = await _database.workspaceUserId();
       final previous = await database.transaction((txn) async {
-        final user = (await txn.query('users', orderBy: 'id', limit: 1)).single;
-        final userId = user['id'];
         final profiles = await txn.query(
           'profiles',
           columns: ['avatar_original_path'],
@@ -68,7 +97,7 @@ class ProfileStore extends ChangeNotifier {
           await txn.insert('profiles', {
             'user_id': userId,
             'display_name': 'Guest',
-            'created_at': user['created_at'],
+            'created_at': DateTime.now().toIso8601String(),
             ...values,
           });
         }
@@ -81,8 +110,34 @@ class ProfileStore extends ChangeNotifier {
     } finally {
       await _removeOriginal(staged);
       _saving = false;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
+  }
+
+  Future<void> setName(String name) async {
+    final value = name.trim();
+    if (value.isEmpty || _saving) return;
+    _saving = true;
+    try {
+      final id = await _database.workspaceUserId();
+      final db = await _database.database;
+      await db.update(
+        'profiles',
+        {'display_name': value},
+        where: 'user_id = ?',
+        whereArgs: [id],
+      );
+      _name = value;
+    } finally {
+      _saving = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   static Future<String> writeOriginal(

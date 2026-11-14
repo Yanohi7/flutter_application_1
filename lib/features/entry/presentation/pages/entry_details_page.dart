@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -27,11 +28,14 @@ class EntryDetailsPage extends StatelessWidget {
               (EntryCubit cubit) => cubit.state.status == EntryStatus.loading,
             );
             return Scaffold(
-              appBar: AppBar(title: const Text('Entry')),
+              appBar: AppBar(title: Text(AppLocalizations.of(context)!.entry)),
               body: Center(
                 child: WallpaperTextSurface(
                   child: Text(
-                    loading ? 'Loading…' : 'This entry is no longer available',
+                    loading
+                        ? AppLocalizations.of(context)!.loading
+                        : AppLocalizations.of(context)!
+                              .thisEntryIsNoLongerAvailable,
                   ),
                 ),
               ),

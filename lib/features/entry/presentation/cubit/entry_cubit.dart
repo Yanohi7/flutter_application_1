@@ -60,6 +60,7 @@ class EntryCubit extends Cubit<EntryState> {
     List<MediaAttachment>? retainedAttachments,
     ({int id, String name})? category,
     bool attachmentsOnly = false,
+    bool checklistOnly = false,
   }) async {
     if (isClosed || state.isWriting || state.status == EntryStatus.loading) {
       return null;
@@ -82,7 +83,9 @@ class EntryCubit extends Cubit<EntryState> {
           ...(retainedAttachments ?? original.attachments),
           ...newAttachments,
         ];
-        saved = attachmentsOnly
+        saved = checklistOnly
+            ? original.copyWith(content: content, updatedAt: DateTime.now())
+            : attachmentsOnly
             ? original.copyWith(
                 attachments: attachments,
                 updatedAt: DateTime.now(),
@@ -98,7 +101,10 @@ class EntryCubit extends Cubit<EntryState> {
                 categoryName: category?.name,
                 attachments: attachments,
               );
-        await updateEntry(saved, allowUntitled: attachmentsOnly);
+        await updateEntry(
+          saved,
+          allowUntitled: attachmentsOnly || checklistOnly,
+        );
       }
       if (isClosed) return saved;
       _putEntry(saved); // Update the list without another query after INSERT

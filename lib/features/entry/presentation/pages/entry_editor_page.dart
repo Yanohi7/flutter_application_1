@@ -1,6 +1,8 @@
-import '../../../category/presentation/pages/category_create_page.dart';
-// Edit an entry draft, choose its category and return the saved result to the calling page
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
+import '../../../category/presentation/pages/category_create_page.dart';
+
+// Edit an entry draft, choose its category and return the saved result to the calling page
 import 'package:flutter/material.dart';
 
 import 'dart:async';
@@ -48,13 +50,15 @@ class EntryEditorPage extends StatefulWidget {
 
 class _EntryEditorPageState extends State<EntryEditorPage> {
   final _formKey = GlobalKey<FormState>(); // Provides access to validate()
+  final _titleFieldKey = GlobalKey();
+  final _titleFocus = FocusNode();
+  final _editorScroll = ScrollController();
   late final TextEditingController _title;
   late final EntryDocumentController _content;
   late final EntryPlayback _playback;
   final _textDirty = ValueNotifier(false);
   final _privateController = PrivateContentEditorController();
   String _lastTitle = '';
-
   late bool _isPinned;
   late bool _isFavorite;
   ({int id, String name})? _category;
@@ -66,7 +70,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   bool _askingToLeave =
       false; // Prevent multiple leave-confirmation dialogs from opening at once
   String? _saveError; // An error does not clear the text controllers
-
   final _imagePicker = ImagePicker();
   final _audioInput = EntryAudioInput();
   final _draftAudios = <XFile>[];
@@ -79,7 +82,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   StreamSubscription? _amplitudeSubscription;
   final _levels = <double>[];
   final _recordingFrame = ValueNotifier(0);
-
   Future<void> _pauseRecording() async {
     if (_isChangingAudio) return;
     setState(() => _isChangingAudio = true);
@@ -93,14 +95,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       }
       if (mounted) setState(() => _isRecordingPaused = !_isRecordingPaused);
     } catch (_) {
-      if (mounted) _showMessage('Could not pause or resume the recording.');
+      if (mounted)
+        _showMessage(
+          AppLocalizations.of(context)!.couldNotPauseOrResumeTheRecording,
+        );
     } finally {
       if (mounted) setState(() => _isChangingAudio = false);
     }
   }
 
   bool get _isAudioBusy => _isChangingAudio || _isRecording;
-
   Future<void> _changeAudio({required bool isRecordingAction}) async {
     if (_isChangingAudio ||
         _isPreparingSave ||
@@ -129,7 +133,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                 _levels.add(((amplitude.current + 60) / 60).clamp(0.0, 1.0));
                 if (_levels.length > 40) _levels.removeAt(0);
               }, onError: (Object _) {});
-
           _recordingClock
             ..reset()
             ..start();
@@ -140,21 +143,21 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             if (mounted && !_isRecordingPaused) _recordingFrame.value++;
           });
         }
-        if (!isStarted) _showMessage('Microphone permission was denied.');
+        if (!mounted) return;
+        if (!isStarted) {
+          _showMessage(
+            AppLocalizations.of(context)!.microphonePermissionWasDenied,
+          );
+        }
       } else {
         final audio = isRecordingAction
-            ? await _audioInput.stopRecording()
+            ? await _finishRecording()
             : await _audioInput.pickAudio();
         if (!mounted) return;
-        if (isRecordingAction) {
-          unawaited(_amplitudeSubscription?.cancel());
-          _amplitudeSubscription = null;
-          setState(() {
-            _isRecording = false;
-            _isRecordingPaused = false;
-            _recordingClock.stop();
-            _recordingTimer?.cancel();
-          });
+        if (isRecordingAction && audio == null) {
+          _showMessage(
+            AppLocalizations.of(context)!.couldNotCompleteTheAudioAction,
+          );
         }
         if (audio != null &&
             !_hasAttachment(audio.path) &&
@@ -170,11 +173,36 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         }
       }
     } on UnsupportedError catch (error) {
-      if (mounted) _showMessage(error.message ?? 'Audio is unavailable.');
+      if (mounted) {
+        _showMessage(
+          error.message ?? AppLocalizations.of(context)!.audioIsUnavailable,
+        );
+      }
     } catch (_) {
-      if (mounted) _showMessage('Could not complete the audio action.');
+      if (mounted) {
+        _showMessage(
+          AppLocalizations.of(context)!.couldNotCompleteTheAudioAction,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isChangingAudio = false);
+    }
+  }
+
+  Future<XFile?> _finishRecording() async {
+    try {
+      return await _audioInput.stopRecording();
+    } finally {
+      if (mounted) {
+        unawaited(_amplitudeSubscription?.cancel());
+        _amplitudeSubscription = null;
+        _recordingClock.stop();
+        _recordingTimer?.cancel();
+        setState(() {
+          _isRecording = false;
+          _isRecordingPaused = false;
+        });
+      }
     }
   }
 
@@ -198,13 +226,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
           .toList();
   bool _isPickingAttachment =
       false; // Prevent multiple image pickers from opening at once
-
   bool _hasAttachment(String path) =>
       _retainedAttachments.any((item) => item.localPath == path) ||
       _draftImages.any((item) => item.path == path) ||
       _draftAudios.any((item) => item.path == path) ||
       _draftDocuments.any((item) => item.path == path);
-
   Future<bool> _allowAttachment() async {
     final count =
         _retainedAttachments.length +
@@ -219,18 +245,20 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final agreed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
-        title: const Text('Add another attachment'),
-        content: const Text(
-          'The first attachment is free. Complete one ad to add this attachment.',
+        scrollable: true,
+        title: Text(AppLocalizations.of(context)!.addAnotherAttachment),
+        content: Text(
+          AppLocalizations.of(context)!
+              .theFirstAttachmentIsFreeCompleteOneAdToAddThisAttachment,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialog, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Watch ad'),
+            child: Text(AppLocalizations.of(context)!.watchAd),
           ),
         ],
       ),
@@ -243,8 +271,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     if (result == RewardedAdResult.earned) return true;
     _showMessage(
       result == RewardedAdResult.dismissed
-          ? 'Finish the ad to add this attachment.'
-          : 'An ad is unavailable right now. Try again later.',
+          ? AppLocalizations.of(context)!.finishTheAdToAddThisAttachment
+          : AppLocalizations.of(context)!
+                .anAdIsUnavailableRightNowTryAgainLater,
     );
     return false;
   }
@@ -254,7 +283,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       _attachmentLabels.containsKey(file.localPath)
       ? file.withDisplayName(_attachmentLabels[file.localPath]!)
       : file;
-
   List<MediaAttachment> get _photos => [
     ..._retainedAttachments.where((file) => file.fileType == 'photo'),
     for (final file in _draftImages)
@@ -277,7 +305,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         ),
       ),
   ];
-
   List<MediaAttachment> get _documents => [
     ..._retainedAttachments.where(
       (file) => const ['document', 'video'].contains(file.fileType),
@@ -290,7 +317,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         fileSize: _documentSizes[file.path],
       ),
   ];
-
   Future<void> _pickDocuments() async {
     if (_isPickingAttachment || _isPreparingSave || _isAudioBusy) return;
     setState(() => _isPickingAttachment = true);
@@ -315,12 +341,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       if (!mounted) return;
       if (skipped.isNotEmpty) {
         _showMessage(
-          'Some files were skipped. Use supported files up to 10 MB each.',
+          AppLocalizations.of(context)!
+              .someFilesWereSkippedUseSupportedFilesUpTo10MbEach,
         );
       }
     } catch (_) {
       if (mounted) {
-        _showMessage('Could not read the selected files. Please try again.');
+        _showMessage(
+          AppLocalizations.of(context)!
+              .couldNotReadTheSelectedFilesPleaseTryAgain,
+        );
       }
     } finally {
       if (mounted) setState(() => _isPickingAttachment = false);
@@ -350,20 +380,22 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final isConfirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(
           isPhoto
-              ? 'Remove image?'
+              ? AppLocalizations.of(context)!.removeImageLabel
               : file.fileType == 'audio'
-              ? 'Remove audio?'
-              : 'Remove file?',
+              ? AppLocalizations.of(context)!.removeAudioLabel
+              : AppLocalizations.of(context)!.removeFileLabel,
         ),
         content: Text(
-          'This attachment will be removed from the entry when you save.',
+          AppLocalizations.of(context)!
+              .thisAttachmentWillBeRemovedFromTheEntryWhenYouSave,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -371,7 +403,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
+            child: Text(AppLocalizations.of(context)!.remove),
           ),
         ],
       ),
@@ -402,9 +434,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
 
   Future<void> _pickImage(ImageSource source) async {
     if (_isPickingAttachment || _isPreparingSave || _isAudioBusy) return;
-
     setState(() => _isPickingAttachment = true);
-
     try {
       final images = source == ImageSource.gallery
           ? await _imagePicker.pickMultiImage()
@@ -418,8 +448,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to pick an image. Please try again.'),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.failedToPickAnImagePleaseTryAgain,
+          ),
         ),
       );
     } finally {
@@ -439,24 +471,20 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     _isPinned = widget.entry?.isPinned ?? false;
     _isFavorite = widget.entry?.isFavorite ?? false;
     final original = widget.entry;
-
     if (original != null) {
       _category = (id: original.categoryId, name: original.categoryName);
     } else {
       final categoryState = context.read<CategoryCubit>().state;
-
       for (final category in categoryState.categories) {
         if (category.id == categoryState.selectedCategoryId) {
           _category = (id: category.id, name: category.name);
           break;
         }
-
         if (category.isDefault) {
           _category = (id: category.id, name: category.name);
         }
       }
     }
-
     _initialCategoryId = _category?.id;
     _title.addListener(_onTitleChanged);
     _content.addListener(_onDraftChanged);
@@ -497,13 +525,14 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       _textDirty.value ||
       (_original == null && (_isPinned || _isFavorite)) ||
       _category?.id != _initialCategoryId;
-
   @override
   void dispose() {
     _recordingTimer?.cancel();
     unawaited(_amplitudeSubscription?.cancel());
     _recordingClock.stop();
     _title.dispose(); // Also removes the registered listeners
+    _titleFocus.dispose();
+    _editorScroll.dispose();
     _content.dispose();
     _textDirty.dispose();
     _recordingFrame.dispose();
@@ -511,50 +540,40 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       unawaited(_playback.stopIfPath(audio.path));
     }
     unawaited(_audioInput.dispose(beforeCleanup: _playback.waitForSourceIn));
-
     super.dispose();
   }
 
   // Change the form draft only, leaving the stored entry unchanged until Save
   Future<void> _chooseCategory() async {
     if (context.read<EntryCubit>().state.isSaving) return;
-
     final cubit = context.read<CategoryCubit>();
-
     if (cubit.state.isSaving) return;
-
     if (cubit.state.status != CategoryStatus.success) {
       await cubit.loadCategories();
     }
-
     if (!mounted) return;
-
     if (cubit.state.status != CategoryStatus.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Categories are not ready. Please try again.'),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.categoriesAreNotReadyPleaseTryAgain,
+          ),
         ),
       );
       return;
     }
-
     FocusScope.of(context).unfocus();
-
     final selection = await showCategoryPicker(
       onCreateCategory: (_) => showCategoryEditor(context),
       context: context,
       categories: cubit.state.categories,
       selectedId: _category?.id,
-
       // An entry must belong to a real category, unlike a category that can have no parent
       allowTopLevel: false,
-      title: 'Select a category',
+      title: AppLocalizations.of(context)!.selectACategory,
     );
-
     final selected = selection?.category;
-
     if (!mounted || selected == null) return;
-
     setState(() {
       _category = (id: selected.id, name: selected.name);
       _saveError = null; // Clear any previous save error when changing category
@@ -570,12 +589,33 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       return false;
     }
     if (!_reading) {
-      final valid = _formKey.currentState?.validate() ?? false;
-      if (!valid) return false;
       if (_title.text.trim().isEmpty) {
-        _showMessage('Enter an entry title');
+        _showMessage(AppLocalizations.of(context)!.enterAnEntryTitle);
+        final animation = const Duration(milliseconds: 240);
+        if (_titleFieldKey.currentContext == null && _editorScroll.hasClients) {
+          await _editorScroll.animateTo(
+            0,
+            duration: animation,
+            curve: Curves.easeOut,
+          );
+        }
+        if (!mounted) return false;
+        final titleContext = _titleFieldKey.currentContext;
+        if (titleContext != null && titleContext.mounted) {
+          await Scrollable.ensureVisible(
+            titleContext,
+            alignment: 0.12,
+            duration: animation,
+            curve: Curves.easeOut,
+          );
+        }
+        if (mounted) {
+          _formKey.currentState?.validate();
+          _titleFocus.requestFocus();
+        }
         return false;
       }
+      if (!(_formKey.currentState?.validate() ?? false)) return false;
     }
     setState(() => _isPreparingSave = true);
     try {
@@ -590,7 +630,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       final payload = await _privateController.commit();
       if (!mounted) return false;
       if (payload == null) {
-        _showMessage('Finish unlocking or saving private information first.');
+        _showMessage(
+          AppLocalizations.of(context)!
+              .finishUnlockingOrSavingPrivateInformationFirst,
+        );
         return false;
       }
       _privateContent = payload;
@@ -618,9 +661,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       } catch (_) {
         await _removeCopiedAttachments(attachments);
         if (mounted) {
-          setState(() {
-            _saveError = 'Could not save the attachments. Please try again.';
-          });
+          final message = AppLocalizations.of(context)!
+              .couldNotSaveTheAttachmentsPleaseTryAgain;
+          setState(() => _saveError = message);
         }
         return false;
       }
@@ -629,7 +672,6 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         return false;
       }
     }
-
     final saved = await cubit.saveEntry(
       original: _original,
       title: _title.text,
@@ -645,9 +687,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     if (saved == null) await _removeCopiedAttachments(attachments);
     if (!mounted) return false;
     if (saved == null) {
-      setState(
-        () => _saveError = cubit.state.errorMessage ?? 'Please try again.',
-      );
+      final message = AppLocalizations.of(context)!
+          .couldNotSaveTheEntryYourTextIsStillInTheForm;
+      setState(() => _saveError = message);
       return false;
     }
     for (final (index, draft) in drafts.indexed) {
@@ -694,7 +736,30 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     return true;
   }
 
+  Future<void> _saveChecklist(String content) async {
+    final entry = _original;
+    if (entry == null || !_reading || _isPreparingSave) return;
+    final cubit = context.read<EntryCubit>();
+    if (cubit.state.isWriting) return;
+    final saved = await cubit.saveEntry(
+      original: entry,
+      title: entry.title ?? '',
+      content: content,
+      isPinned: entry.isPinned,
+      isFavorite: entry.isFavorite,
+      checklistOnly: true,
+    );
+    if (!mounted) return;
+    if (saved != null) {
+      setState(() => _original = saved);
+      _content.markSaved(saved.content);
+    } else if (cubit.state.errorMessage case final message?) {
+      _showMessage(message);
+    }
+  }
+
   Future<void> _toggleReading() async {
+    if (context.read<EntryCubit>().state.isWriting) return;
     if (!_reading && _isDirty && !await _save()) return;
     if (!mounted) return;
     FocusScope.of(context).unfocus();
@@ -739,20 +804,21 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     final discard = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Discard unsaved changes?'),
-        content: const Text(
-          'If you leave now, your changes will not be saved.',
+        scrollable: true,
+        title: Text(AppLocalizations.of(context)!.discardUnsavedChanges),
+        content: Text(
+          AppLocalizations.of(context)!.ifYouLeaveNowYourChangesWillNotBeSaved,
         ),
         actions: [
           TextButton(
             // The tap handler; null disables the button
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Keep editing'),
+            child: Text(AppLocalizations.of(context)!.keepEditing),
           ),
           FilledButton(
             // The tap handler; null disables the button
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Leave'),
+            child: Text(AppLocalizations.of(context)!.leave),
           ),
         ],
       ),
@@ -768,8 +834,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final location = _category?.name ?? 'Default';
+    final location =
+        _category?.name ?? AppLocalizations.of(context)!.defaultLabel;
     final original = _original;
+    final photos = _photos;
+    final audios = _audios;
+    final documents = _documents;
     final titleStyle = theme.textTheme.headlineSmall?.copyWith(
       fontWeight: FontWeight.w700,
       color: theme.colorScheme.onSurface,
@@ -809,7 +879,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                   }
                 },
               ),
-              title: original == null ? const Text('Add entry') : null,
+              title: original == null
+                  ? Text(AppLocalizations.of(context)!.addEntry)
+                  : null,
               actions: original == null
                   ? null
                   : [
@@ -821,7 +893,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                           maintainAnimation: true,
                           maintainState: true,
                           child: IconButton(
-                            tooltip: 'Save changes',
+                            tooltip: AppLocalizations.of(context)!.saveChanges,
                             icon: const Icon(Icons.check),
                             onPressed:
                                 state.isSaving ||
@@ -834,11 +906,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                       ),
                       IconButton(
                         tooltip: _reading
-                            ? 'Exit reading mode'
-                            : 'Reading mode',
+                            ? AppLocalizations.of(context)!.exitReadingMode
+                            : AppLocalizations.of(context)!.readingMode,
                         isSelected: _reading,
-                        icon: const Icon(Icons.visibility_outlined),
-                        selectedIcon: const Icon(Icons.visibility),
+                        icon: const Icon(Icons.visibility_outlined, size: 22),
+                        selectedIcon: const Icon(Icons.edit_outlined, size: 22),
                         onPressed:
                             state.isSaving ||
                                 _isPickingAttachment ||
@@ -848,8 +920,8 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                       ),
                       IconButton(
                         tooltip: original.isFavorite
-                            ? 'Remove from favorites'
-                            : 'Add to favorites',
+                            ? AppLocalizations.of(context)!.removeFromFavorites
+                            : AppLocalizations.of(context)!.addToFavorites,
                         icon: Icon(
                           original.isFavorite ? Icons.star : Icons.star_border,
                           color: original.isFavorite
@@ -861,7 +933,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                             : () => _changeMark(original, favorite: true),
                       ),
                       IconButton(
-                        tooltip: original.isPinned ? 'Unpin' : 'Pin',
+                        tooltip: original.isPinned
+                            ? AppLocalizations.of(context)!.unpin
+                            : AppLocalizations.of(context)!.pin,
                         icon: Icon(
                           original.isPinned
                               ? Icons.push_pin
@@ -874,7 +948,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                       ),
                       if (widget.onActions != null)
                         IconButton(
-                          tooltip: 'Entry actions',
+                          tooltip: AppLocalizations.of(context)!.entryActions,
                           icon: const Icon(Icons.more_vert),
                           onPressed:
                               state.isSaving ||
@@ -893,6 +967,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                   child: Form(
                     key: _formKey,
                     child: ListView(
+                      controller: _editorScroll,
                       padding: const EdgeInsets.all(16),
                       children: [
                         if (original == null)
@@ -900,7 +975,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const FieldLabel('Category'),
+                                FieldLabel(
+                                  AppLocalizations.of(context)!.category,
+                                ),
                                 InkWell(
                                   onTap: state.isSaving
                                       ? null
@@ -923,12 +1000,15 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                               children: [
                                 if (_reading)
                                   SelectableText(
-                                    original.title ?? 'Untitled',
+                                    original.title ??
+                                        AppLocalizations.of(context)!.untitled,
                                     style: titleStyle,
                                   )
                                 else
                                   EntryTitleField(
+                                    key: _titleFieldKey,
                                     controller: _title,
+                                    focusNode: _titleFocus,
                                     enabled:
                                         !state.isSaving && !_isPreparingSave,
                                     style: titleStyle,
@@ -964,8 +1044,12 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                         if (_reading) ...[
                           ReadablePanel(
                             child: _content.text.isEmpty
-                                ? const Text('No text yet')
-                                : EntryDocumentView(content: _content.text),
+                                ? Text(AppLocalizations.of(context)!.noTextYet)
+                                : EntryDocumentView(
+                                    content: _content.text,
+                                    onChecklistChanged: _saveChecklist,
+                                    checklistEnabled: !state.isWriting,
+                                  ),
                           ),
                           if (_privateContent.isNotEmpty) ...[
                             const SizedBox(height: 12),
@@ -974,6 +1058,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                         ] else
                           EntryDocumentEditor(
                             title: original == null ? _title : null,
+                            titleFieldKey: original == null
+                                ? _titleFieldKey
+                                : null,
+                            titleFocus: original == null ? _titleFocus : null,
                             content: _content,
                             enabled: !state.isSaving && !_isPreparingSave,
                             hasPrivateContent: _privateContent.isNotEmpty,
@@ -1001,159 +1089,211 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                               },
                             ),
                           ),
-
-                        const SizedBox(height: 16),
-                        ReadablePanel(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const FieldLabel('Images'),
-                              Wrap(
-                                spacing: 8,
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed:
-                                        state.isSaving || _isPickingAttachment
-                                        ? null
-                                        : () => _pickImage(ImageSource.gallery),
-                                    icon: const Icon(
-                                      Icons.photo_library_outlined,
-                                    ),
-                                    label: const Text('Gallery'),
+                        if (!_reading ||
+                            photos.isNotEmpty ||
+                            audios.isNotEmpty ||
+                            documents.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          ReadablePanel(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (!_reading || photos.isNotEmpty) ...[
+                                  FieldLabel(
+                                    AppLocalizations.of(context)!.images,
                                   ),
-                                  if (defaultTargetPlatform ==
-                                      TargetPlatform.android)
-                                    OutlinedButton.icon(
-                                      onPressed:
-                                          state.isSaving || _isPickingAttachment
-                                          ? null
-                                          : () =>
-                                                _pickImage(ImageSource.camera),
-                                      icon: const Icon(
-                                        Icons.camera_alt_outlined,
-                                      ),
-                                      label: const Text('Camera'),
-                                    ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 8),
-                              EntryPhotoGallery(
-                                photos: _photos,
-                                isEnabled:
-                                    !state.isSaving &&
-                                    !_isPreparingSave &&
-                                    !_isPickingAttachment &&
-                                    !_isAudioBusy,
-                                onCaption: _reading
-                                    ? null
-                                    : (index) =>
-                                          _renameAttachment(_photos[index]),
-                                onRemove: _reading
-                                    ? null
-                                    : (index) => _removeMedia(_photos[index]),
-                              ),
-                              const SizedBox(height: 20),
-                              const FieldLabel('Audio'),
-                              if (_isRecording)
-                                ValueListenableBuilder<int>(
-                                  valueListenable: _recordingFrame,
-                                  builder: (context, _, _) =>
-                                      EntryRecordingPanel(
-                                        elapsed: _recordingClock.elapsed,
-                                        levels: _levels,
-                                        isPaused: _isRecordingPaused,
-                                        isBusy: _isChangingAudio,
-                                        onPause: _pauseRecording,
-                                        onStop: () => _changeAudio(
-                                          isRecordingAction: true,
+                                  if (!_reading) ...[
+                                    Wrap(
+                                      spacing: 8,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed:
+                                              state.isSaving ||
+                                                  _isPickingAttachment
+                                              ? null
+                                              : () => _pickImage(
+                                                  ImageSource.gallery,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.photo_library_outlined,
+                                          ),
+                                          label: Text(
+                                            AppLocalizations.of(context)!
+                                                .gallery,
+                                          ),
                                         ),
-                                      ),
-                                )
-                              else ...[
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed:
-                                          state.isSaving ||
-                                              _isAudioBusy ||
-                                              _isPreparingSave ||
-                                              _isPickingAttachment
-                                          ? null
-                                          : () => _changeAudio(
+                                        if (defaultTargetPlatform ==
+                                            TargetPlatform.android)
+                                          OutlinedButton.icon(
+                                            onPressed:
+                                                state.isSaving ||
+                                                    _isPickingAttachment
+                                                ? null
+                                                : () => _pickImage(
+                                                    ImageSource.camera,
+                                                  ),
+                                            icon: const Icon(
+                                              Icons.camera_alt_outlined,
+                                            ),
+                                            label: Text(
+                                              AppLocalizations.of(context)!
+                                                  .camera,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  EntryPhotoGallery(
+                                    photos: photos,
+                                    isEnabled:
+                                        !state.isSaving &&
+                                        !_isPreparingSave &&
+                                        !_isPickingAttachment &&
+                                        !_isAudioBusy,
+                                    onCaption: _reading
+                                        ? null
+                                        : (index) =>
+                                              _renameAttachment(photos[index]),
+                                    onRemove: _reading
+                                        ? null
+                                        : (index) =>
+                                              _removeMedia(photos[index]),
+                                  ),
+                                ],
+                                if (!_reading || audios.isNotEmpty) ...[
+                                  if (!_reading || photos.isNotEmpty)
+                                    const SizedBox(height: 20),
+                                  FieldLabel(
+                                    AppLocalizations.of(context)!.audio,
+                                  ),
+                                  if (_isRecording)
+                                    ValueListenableBuilder<int>(
+                                      valueListenable: _recordingFrame,
+                                      builder: (context, _, _) =>
+                                          EntryRecordingPanel(
+                                            elapsed: _recordingClock.elapsed,
+                                            levels: _levels,
+                                            isPaused: _isRecordingPaused,
+                                            isBusy: _isChangingAudio,
+                                            onPause: _pauseRecording,
+                                            onStop: () => _changeAudio(
                                               isRecordingAction: true,
                                             ),
-                                      icon: const Icon(
-                                        Icons.mic_none_rounded,
-                                        size: 20,
-                                      ),
-                                      label: const Text('Record'),
-                                    ),
-                                    OutlinedButton.icon(
-                                      onPressed:
-                                          state.isSaving ||
-                                              _isAudioBusy ||
-                                              _isPreparingSave ||
-                                              _isPickingAttachment
-                                          ? null
-                                          : () => _changeAudio(
-                                              isRecordingAction: false,
+                                          ),
+                                    )
+                                  else ...[
+                                    if (!_reading) ...[
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          OutlinedButton.icon(
+                                            onPressed:
+                                                state.isSaving ||
+                                                    _isAudioBusy ||
+                                                    _isPreparingSave ||
+                                                    _isPickingAttachment
+                                                ? null
+                                                : () => _changeAudio(
+                                                    isRecordingAction: true,
+                                                  ),
+                                            icon: const Icon(
+                                              Icons.mic_none_rounded,
+                                              size: 20,
                                             ),
-                                      icon: const Icon(
-                                        Icons.audio_file_outlined,
-                                        size: 20,
+                                            label: Text(
+                                              AppLocalizations.of(context)!
+                                                  .record,
+                                            ),
+                                          ),
+                                          OutlinedButton.icon(
+                                            onPressed:
+                                                state.isSaving ||
+                                                    _isAudioBusy ||
+                                                    _isPreparingSave ||
+                                                    _isPickingAttachment
+                                                ? null
+                                                : () => _changeAudio(
+                                                    isRecordingAction: false,
+                                                  ),
+                                            icon: const Icon(
+                                              Icons.audio_file_outlined,
+                                              size: 20,
+                                            ),
+                                            label: Text(
+                                              AppLocalizations.of(context)!
+                                                  .addAudio,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      label: const Text('Add audio'),
+                                      const SizedBox(height: 10),
+                                    ],
+                                    EntryAudioPlayer(
+                                      attachments: audios,
+                                      isEnabled:
+                                          !state.isSaving &&
+                                          !_isPreparingSave &&
+                                          !_isAudioBusy,
+                                      onRename: _reading
+                                          ? null
+                                          : _renameAttachment,
+                                      onRemove: _reading ? null : _removeMedia,
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 10),
-                                EntryAudioPlayer(
-                                  attachments: _audios,
-                                  isEnabled:
-                                      !state.isSaving &&
-                                      !_isPreparingSave &&
-                                      !_isAudioBusy,
-                                  onRename: _reading ? null : _renameAttachment,
-                                  onRemove: _reading ? null : _removeMedia,
-                                ),
+                                ],
+                                if (!_reading || documents.isNotEmpty) ...[
+                                  if (!_reading ||
+                                      photos.isNotEmpty ||
+                                      audios.isNotEmpty)
+                                    const SizedBox(height: 20),
+                                  FieldLabel(
+                                    AppLocalizations.of(context)!.files,
+                                  ),
+                                  if (!_reading) ...[
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            state.isSaving ||
+                                                _isPreparingSave ||
+                                                _isAudioBusy ||
+                                                _isPickingAttachment
+                                            ? null
+                                            : _pickDocuments,
+                                        icon: const Icon(
+                                          Icons.attach_file,
+                                          size: 20,
+                                        ),
+                                        label: Text(
+                                          AppLocalizations.of(context)!
+                                              .addFiles,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      AppLocalizations.of(context)!
+                                          .documentsZipAndVideoUpTo10MbEach,
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  EntryFileList(
+                                    files: documents,
+                                    onRemove: _reading ? null : _removeMedia,
+                                    isEnabled:
+                                        !state.isSaving &&
+                                        !_isPreparingSave &&
+                                        !_isAudioBusy &&
+                                        !_isPickingAttachment,
+                                  ),
+                                ],
                               ],
-                              const SizedBox(height: 20),
-                              const FieldLabel('Files'),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: OutlinedButton.icon(
-                                  onPressed:
-                                      state.isSaving ||
-                                          _isPreparingSave ||
-                                          _isAudioBusy ||
-                                          _isPickingAttachment
-                                      ? null
-                                      : _pickDocuments,
-                                  icon: const Icon(Icons.attach_file, size: 20),
-                                  label: const Text('Add files'),
-                                ),
-                              ),
-                              Text(
-                                'Documents, ZIP and video · Up to 10 MB each',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 8),
-                              EntryFileList(
-                                files: _documents,
-                                onRemove: _reading ? null : _removeMedia,
-                                isEnabled:
-                                    !state.isSaving &&
-                                    !_isPreparingSave &&
-                                    !_isAudioBusy &&
-                                    !_isPickingAttachment,
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
+                          const SizedBox(height: 16),
+                        ],
                         if (original == null)
                           Row(
                             children: [
@@ -1182,7 +1322,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                                     size: 20,
                                   ),
                                   label: Text(
-                                    _isFavorite ? 'Favorited' : 'Favorite',
+                                    _isFavorite
+                                        ? AppLocalizations.of(context)!
+                                              .favorited
+                                        : AppLocalizations.of(context)!
+                                              .favorite,
                                   ),
                                 ),
                               ),
@@ -1211,7 +1355,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                                     color: AppColors.pin,
                                     size: 20,
                                   ),
-                                  label: Text(_isPinned ? 'Pinned' : 'Pin'),
+                                  label: Text(
+                                    _isPinned
+                                        ? AppLocalizations.of(context)!.pinned
+                                        : AppLocalizations.of(context)!.pin,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1238,13 +1386,20 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: Text(state.isSaving ? 'Saving…' : 'Save'),
+                            child: Text(
+                              state.isSaving
+                                  ? AppLocalizations.of(context)!.saving
+                                  : AppLocalizations.of(context)!.save,
+                            ),
                           ),
                         ] else
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              'Created ${formatEntryDate(original.createdAt)} · Edited ${formatEntryDate(original.updatedAt)}',
+                              AppLocalizations.of(context)!.entryDates(
+                                formatEntryDate(original.createdAt),
+                                formatEntryDate(original.updatedAt),
+                              ),
                               style: theme.textTheme.bodySmall,
                             ),
                           ),

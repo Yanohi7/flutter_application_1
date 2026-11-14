@@ -1,5 +1,6 @@
 // Edit a user-facing attachment label without changing its physical filename
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 Future<String?> showAttachmentNameDialog(
@@ -36,7 +37,12 @@ class _NameDialogState extends State<_NameDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.isPhoto ? 'Image caption' : 'Audio name'),
+    scrollable: true,
+    title: Text(
+      widget.isPhoto
+          ? AppLocalizations.of(context)!.imageCaption
+          : AppLocalizations.of(context)!.audioName,
+    ),
     content: Form(
       key: _formKey,
       child: TextFormField(
@@ -46,10 +52,12 @@ class _NameDialogState extends State<_NameDialog> {
         textCapitalization: TextCapitalization.sentences,
         textInputAction: TextInputAction.done,
         decoration: InputDecoration(
-          hintText: widget.isPhoto ? 'Optional caption' : 'Audio name',
+          hintText: widget.isPhoto
+              ? AppLocalizations.of(context)!.optionalCaption
+              : AppLocalizations.of(context)!.audioName,
         ),
         validator: (value) => !widget.isPhoto && (value?.trim().isEmpty ?? true)
-            ? 'Enter an audio name'
+            ? AppLocalizations.of(context)!.enterAnAudioName
             : null,
         onFieldSubmitted: (_) => _submit(),
       ),
@@ -57,9 +65,12 @@ class _NameDialogState extends State<_NameDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(AppLocalizations.of(context)!.cancel),
       ),
-      FilledButton(onPressed: _submit, child: const Text('Done')),
+      FilledButton(
+        onPressed: _submit,
+        child: Text(AppLocalizations.of(context)!.done),
+      ),
     ],
   );
 }

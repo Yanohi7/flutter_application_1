@@ -32,22 +32,24 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
   @override
   Future<List<EntryModel>> getEntries({int? categoryId}) async {
     final db = await dbHelper.database; // Open the database only when needed
+    final userId = await dbHelper.workspaceUserId();
     final categoryFilter = categoryId == null
         ? ''
         : ' AND entries.category_id = ?';
     final maps = await db.rawQuery(
-      '$_select WHERE entries.is_deleted = 0'
+      '$_select WHERE entries.is_deleted = 0 AND categories.user_id = ?'
       '$categoryFilter'
       ' ORDER BY entries.is_pinned DESC, entries.updated_at DESC, entries.id DESC',
-      [?categoryId], // Pass values separately from SQL
+      [userId, ?categoryId], // Pass values separately from SQL
     );
     if (maps.isEmpty) return [];
     final attachments = await db.rawQuery(
       'SELECT media_attachments.* FROM media_attachments '
       'JOIN entries ON entries.id = media_attachments.entry_id '
-      'WHERE media_attachments.is_deleted = 0 AND entries.is_deleted = 0'
+      'JOIN categories ON categories.id = entries.category_id '
+      'WHERE media_attachments.is_deleted = 0 AND entries.is_deleted = 0 AND categories.user_id = ?'
       '$categoryFilter ORDER BY media_attachments.id',
-      [?categoryId],
+      [userId, ?categoryId],
     );
     final byEntry = <int, List<MediaAttachment>>{};
     for (final row in attachments) {
@@ -64,8 +66,8 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
   Future<EntryModel> getEntryById(int id) async {
     final db = await dbHelper.database;
     final rows = await db.rawQuery(
-      '$_select WHERE entries.id = ? AND entries.is_deleted = 0',
-      [id],
+      '$_select WHERE entries.id = ? AND entries.is_deleted = 0 AND categories.user_id = ?',
+      [id, await dbHelper.workspaceUserId()],
     );
     if (rows.isEmpty) throw StateError('Entry not found.');
     final attachments = await db.query(
@@ -92,7 +94,9 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
   @override
   Future<int> insertEntry(EntryModel entry) async {
     final db = await dbHelper.database;
+    final userId = await dbHelper.workspaceUserId();
     return db.transaction((txn) async {
+      await _requireCategory(txn, entry.categoryId, userId);
       final id = await txn.insert('entries', entry.toMap());
       if (entry.attachments.isNotEmpty) {
         final batch = txn.batch();
@@ -106,12 +110,14 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
   @override
   Future<void> updateEntry(EntryModel entry) async {
     final db = await dbHelper.database;
+    final userId = await dbHelper.workspaceUserId();
     final removed = await db.transaction((txn) async {
+      await _requireCategory(txn, entry.categoryId, userId);
       final count = await txn.update(
         'entries',
         entry.toMap(),
-        where: 'id = ? AND is_deleted = 0',
-        whereArgs: [entry.id],
+        where: 'id = ? AND is_deleted = 0 AND category_id IN (SELECT id FROM categories WHERE user_id = ?)',
+        whereArgs: [entry.id, userId],
       );
       if (count != 1) throw StateError('Entry not found.');
       final keptPaths = entry.attachments.map((file) => file.localPath).toSet();
@@ -156,10 +162,20 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
         if (pinned != null) 'is_pinned': pinned ? 1 : 0,
         if (favorite != null) 'is_favorite': favorite ? 1 : 0,
       },
-      where: 'id = ? AND is_deleted = 0',
-      whereArgs: [id],
+      where: 'id = ? AND is_deleted = 0 AND category_id IN (SELECT id FROM categories WHERE user_id = ?)',
+      whereArgs: [id, await dbHelper.workspaceUserId()],
     );
     if (updated != 1) throw StateError('Entry not found.');
+  }
+
+  Future<void> _requireCategory(DatabaseExecutor db, int id, int userId) async {
+    final rows = await db.query(
+      'categories',
+      columns: ['id'],
+      where: 'id = ? AND user_id = ? AND is_deleted = 0',
+      whereArgs: [id, userId],
+    );
+    if (rows.isEmpty) throw StateError('Category not found.');
   }
 
   // Convert an attachment row to the entity used by the editor and reader
@@ -220,7 +236,13 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
   @override
   Future<void> deleteEntry(int id) async {
     final db = await dbHelper.database;
+    final userId = await dbHelper.workspaceUserId();
     final attachments = await db.transaction((txn) async {
+      final owned = await txn.rawQuery(
+        "SELECT entries.id FROM entries JOIN categories ON categories.id = entries.category_id WHERE entries.id = ? AND categories.user_id = ?",
+        [id, userId],
+      );
+      if (owned.isEmpty) throw StateError("Entry not found.");
       final rows = await txn.query(
         'media_attachments',
         columns: ['local_path', 'file_type'],

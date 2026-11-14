@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   sqflite: ^2.3.0
   sqflite_common_ffi: ^2.3.0
@@ -46,6 +49,7 @@ dependencies:
   window_manager: ^0.5.2
   http: ^1.6.0
   google_sign_in: ^7.2.0
+  google_sign_in_platform_interface: ^3.1.0
   google_mobile_ads: ^9.2.0
   image_picker: ^1.2.4
   record: ^7.1.2
@@ -59,8 +63,6 @@ dependencies:
   cryptography: ^2.9.0
   flutter_launcher_icons: "^0.14.4"
   flutter_video_thumbnail_plus: ^1.0.7
-  file_picker: ^13.3.3
-  share_plus: ^13.3.1
   googleapis_auth: ^2.3.7
 
 # Keep the official DPAPI implementation without the unused legacy ATL migration plugin
@@ -89,6 +91,7 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  generate: true
 
   # To add assets to your application, add an assets section, like this:
   assets:

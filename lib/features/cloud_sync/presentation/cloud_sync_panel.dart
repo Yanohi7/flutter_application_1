@@ -1,7 +1,10 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'cloud_sync_controller.dart';
+import 'cloud_sync_messages.dart';
+import 'guest_transfer_dialog.dart';
 
 class CloudSyncPanel extends StatelessWidget {
   const CloudSyncPanel({super.key});
@@ -9,13 +12,18 @@ class CloudSyncPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sync = context.watch<CloudSyncController?>();
-    if (sync == null || !sync.isConnected) return const SizedBox.shrink();
+    if (sync == null || !sync.hasGoogleWorkspace) {
+      return const SizedBox.shrink();
+    }
     final last = sync.lastSync?.toLocal();
+    final l10n = AppLocalizations.of(context)!;
     final localization = MaterialLocalizations.of(context);
     final lastSync = last == null
-        ? 'Never synced'
-        : 'Last sync · ${localization.formatMediumDate(last)}, '
-              '${localization.formatTimeOfDay(TimeOfDay.fromDateTime(last))}';
+        ? AppLocalizations.of(context)!.neverSynced
+        : AppLocalizations.of(context)!.lastSync(
+            localization.formatMediumDate(last),
+            localization.formatTimeOfDay(TimeOfDay.fromDateTime(last)),
+          );
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Card(
@@ -23,32 +31,69 @@ class CloudSyncPanel extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.cloud_outlined),
-              title: const Text('Google Drive'),
+              title: Text(AppLocalizations.of(context)!.googleDrive),
             ),
             SwitchListTile(
-              title: const Text('Auto-sync'),
+              title: Text(AppLocalizations.of(context)!.autoSync),
               value: sync.autoSync,
               onChanged: sync.busy ? null : sync.setAutoSync,
             ),
-            ListTile(
-              title: Text(lastSync),
-              trailing: FilledButton.tonal(
-                onPressed: sync.busy ? null : () => sync.syncNow(),
-                child: const Text('Sync now'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      sync.needsGoogleAccess
+                          ? l10n.googleDriveReconnect
+                          : lastSync,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: FilledButton.tonal(
+                      onPressed: sync.busy ? null : () => sync.syncNow(),
+                      child: Text(
+                        sync.needsGoogleAccess ? l10n.reconnect : l10n.syncNow,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+            if (sync.guestTransferAvailable)
+              ListTile(
+                leading: const Icon(Icons.drive_file_move_outline),
+                title: Text(AppLocalizations.of(context)!.moveGuestEntries),
+                onTap: sync.busy
+                    ? null
+                    : () => offerGuestTransfer(context, sync),
+              ),
             if (sync.conflict != null)
               ListTile(
                 leading: const Icon(Icons.sync_problem),
-                title: const Text('Different versions found'),
-                subtitle: const Text(
-                  'Keep your entries and import differing Drive entries as copies.',
+                title: Text(
+                  AppLocalizations.of(context)!.differentVersionsFound,
                 ),
-                trailing: TextButton(
-                  onPressed: sync.busy
-                      ? null
-                      : () => _reviewConflict(context, sync),
-                  child: const Text('Review'),
+                subtitle: Text(
+                  AppLocalizations.of(context)!
+                      .keepYourEntriesAndImportDifferingDriveEntriesAsCopies,
+                ),
+                trailing: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 84),
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                    ),
+                    onPressed: sync.busy
+                        ? null
+                        : () => _reviewConflict(context, sync),
+                    child: Text(
+                      AppLocalizations.of(context)!.review,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
               ),
             if (sync.busy && !sync.accountBusy) const LinearProgressIndicator(),
@@ -57,7 +102,10 @@ class CloudSyncPanel extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Semantics(liveRegion: true, child: Text(message)),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(cloudSyncMessage(context, message)),
+                  ),
                 ),
               ),
           ],
@@ -73,22 +121,93 @@ class CloudSyncPanel extends StatelessWidget {
     final keepBoth = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Keep both versions?'),
-        content: const Text(
-          'Your local entries and profile stay in place. Different entries from Google Drive are added to a Google Drive copies category, with their attachments.',
+        scrollable: true,
+        title: Text(AppLocalizations.of(context)!.keepBothVersions),
+        content: Text(
+          AppLocalizations.of(
+            context,
+          )!.yourLocalEntriesAndProfileStayInPlaceDifferentEntriesFromGoogleDriveAreAddedToAGoogleDriveCopiesCategoryWithTh,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Keep both'),
+            child: Text(AppLocalizations.of(context)!.keepBoth),
           ),
         ],
       ),
     );
-    if (keepBoth == true && context.mounted) await sync.keepBothCopies();
+    if (keepBoth == true && context.mounted) {
+      await sync.keepBothCopies(
+        requestPassword: ({required local, required copy}) => context.mounted
+            ? showDialog<String>(
+                context: context,
+                builder: (_) =>
+                    _PrivateCopyPasswordDialog(local: local, copy: copy),
+              )
+            : Future.value(null),
+      );
+    }
+  }
+}
+
+class _PrivateCopyPasswordDialog extends StatefulWidget {
+  const _PrivateCopyPasswordDialog({required this.local, required this.copy});
+
+  final bool local;
+  final int copy;
+
+  @override
+  State<_PrivateCopyPasswordDialog> createState() =>
+      _PrivateCopyPasswordDialogState();
+}
+
+class _PrivateCopyPasswordDialogState
+    extends State<_PrivateCopyPasswordDialog> {
+  final _password = TextEditingController();
+
+  void _submit() {
+    if (_password.text.isNotEmpty) Navigator.pop(context, _password.text);
+  }
+
+  @override
+  void dispose() {
+    _password.clear();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return AlertDialog(
+      scrollable: true,
+      title: Text(
+        widget.local
+            ? l10n.localPrivatePassword
+            : l10n.driveCopyPrivatePassword(widget.copy),
+      ),
+      content: TextField(
+        controller: _password,
+        autofocus: true,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        enableIMEPersonalizedLearning: false,
+        autofillHints: null,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(labelText: l10n.enterYourPrivatePassword),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.unlock)),
+      ],
+    );
   }
 }

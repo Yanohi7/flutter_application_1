@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/core/presentation/app_preferences.dart';
 import 'package:flutter_application_1/core/utils/datetime_helpers.dart';
@@ -24,6 +25,10 @@ void main() {
       );
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           home: Scaffold(
             body: CustomScrollView(
               slivers: [
@@ -73,6 +78,10 @@ void main() {
       for (final (index, size) in NoteCardSize.values.indexed) {
         await tester.pumpWidget(
           MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+
             home: Scaffold(
               body: CustomScrollView(
                 slivers: [

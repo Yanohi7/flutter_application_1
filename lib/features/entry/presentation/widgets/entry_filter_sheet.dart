@@ -1,5 +1,6 @@
 // Collect temporary sort and filter choices and return them only when the user applies them
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/app_ui.dart';
@@ -39,6 +40,25 @@ class _FilterSheetState extends State<_FilterSheet> {
   late String _time = widget.initial.time;
   late String _content = widget.initial.content;
 
+  String _label(BuildContext context, String value) {
+    final l10n = AppLocalizations.of(context)!;
+    return switch (value) {
+      'Newest' => l10n.newest,
+      'Oldest' => l10n.oldest,
+      'Last edited' => l10n.lastEdited,
+      'All time' => l10n.allTime,
+      'Today' => l10n.today,
+      'This week' => l10n.thisWeek,
+      'This month' => l10n.thisMonth,
+      'All types' => l10n.allTypes,
+      'Checklist' => l10n.checklist,
+      'Image' => l10n.image,
+      'Audio' => l10n.audio,
+      'File' => l10n.file,
+      _ => value,
+    };
+  }
+
   Widget _choices(
     List<String> values,
     String selected,
@@ -52,7 +72,7 @@ class _FilterSheetState extends State<_FilterSheet> {
         for (final value in values)
           ChoiceChip(
             label: Text(
-              value,
+              _label(context, value),
               style: TextStyle(
                 color: value == selected ? colors.onPrimary : colors.onSurface,
               ),
@@ -73,38 +93,43 @@ class _FilterSheetState extends State<_FilterSheet> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Filter & Sort',
+                  AppLocalizations.of(context)!.filterSort,
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
               ),
-              TextButton(
-                onPressed: () => setState(() {
-                  _sort = 'Newest';
-                  _time = 'All time';
-                  _content = 'All types';
-                }),
-                child: const Text('Reset'),
+              Flexible(
+                child: TextButton(
+                  onPressed: () => setState(() {
+                    _sort = 'Newest';
+                    _time = 'All time';
+                    _content = 'All types';
+                  }),
+                  child: Text(
+                    AppLocalizations.of(context)!.reset,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const FieldLabel('Sort by'),
+          FieldLabel(AppLocalizations.of(context)!.sortBy),
           _choices(
             ['Newest', 'Oldest', 'A–Z', 'Z–A', 'Last edited'],
             _sort,
             (value) => _sort = value,
           ),
           const SizedBox(height: 20),
-          const FieldLabel('Date created'),
+          FieldLabel(AppLocalizations.of(context)!.dateCreated),
           _choices(
             ['All time', 'Today', 'This week', 'This month'],
             _time,
             (value) => _time = value,
           ),
           const SizedBox(height: 20),
-          const FieldLabel('Content'),
+          FieldLabel(AppLocalizations.of(context)!.content),
           _choices(
             ['All types', 'Checklist', 'Image', 'Audio', 'File'],
             _content,
@@ -117,7 +142,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               context,
               EntryViewOptions(sort: _sort, time: _time, content: _content),
             ),
-            child: const Text('Apply'),
+            child: Text(AppLocalizations.of(context)!.apply),
           ),
         ],
       ),

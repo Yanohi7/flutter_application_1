@@ -21,13 +21,12 @@ void main() {
       addTearDown(key.destroy);
       final payload = await PrivateContentStore.encrypt('private text', key);
       final backup = (await PrivateContentStore.readSyncPasswordEnvelope())!;
-      final file = await PrivateContentStore.exportRecoveryFile(key);
 
       FlutterSecureStorage.setMockInitialValues({});
       await PrivateContentStore.acceptSyncPasswordEnvelope(backup);
-      final recovered = await PrivateContentStore.unlockWithRecoveryFile(
-        file,
-        payload: payload,
+      final recovered = await PrivateContentStore.unlockWithPassword(
+        password,
+        isExisting: true,
       );
       addTearDown(recovered.destroy);
       expect(
@@ -52,24 +51,6 @@ void main() {
     },
   );
 
-  test('rejects a recovery file from a different workspace', () async {
-    final key = await PrivateContentStore.unlockWithPassword(
-      password,
-      isExisting: false,
-    );
-    addTearDown(key.destroy);
-    final wrongKey = await PrivateContentStore.cipher.newSecretKey();
-    addTearDown(wrongKey.destroy);
-    final wrongFile = await PrivateContentStore.exportRecoveryFile(wrongKey);
-    final before = await PrivateContentStore.readSyncPasswordEnvelope();
-
-    await expectLater(
-      PrivateContentStore.unlockWithRecoveryFile(wrongFile, payload: ''),
-      throwsFormatException,
-    );
-    expect(await PrivateContentStore.readSyncPasswordEnvelope(), before);
-  });
-
   test('accepts an existing backup with an encrypted entry', () async {
     final key = await PrivateContentStore.unlockWithPassword(
       password,
@@ -80,13 +61,12 @@ void main() {
     final legacy = jsonDecode(current) as Map<String, dynamic>;
     legacy.remove('keyId');
     final payload = await PrivateContentStore.encrypt('older entry', key);
-    final file = await PrivateContentStore.exportRecoveryFile(key);
 
     FlutterSecureStorage.setMockInitialValues({});
     await PrivateContentStore.acceptSyncPasswordEnvelope(jsonEncode(legacy));
-    final recovered = await PrivateContentStore.unlockWithRecoveryFile(
-      file,
-      payload: payload,
+    final recovered = await PrivateContentStore.unlockWithPassword(
+      password,
+      isExisting: true,
     );
     addTearDown(recovered.destroy);
     expect(
@@ -94,10 +74,9 @@ void main() {
       'older entry',
     );
 
-    FlutterSecureStorage.setMockInitialValues({});
-    final restored = await PrivateContentStore.unlockWithRecoveryFile(
-      file,
-      payload: payload,
+    final restored = await PrivateContentStore.unlockWithPassword(
+      password,
+      isExisting: true,
     );
     addTearDown(restored.destroy);
     expect(await PrivateContentStore.decrypt(payload, restored), 'older entry');

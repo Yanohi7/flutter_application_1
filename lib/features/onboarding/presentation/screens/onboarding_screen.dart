@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../cloud_sync/presentation/cloud_sync_controller.dart';
+import '../../../cloud_sync/presentation/cloud_sync_messages.dart';
 import '../../../cloud_sync/presentation/google_sign_in_button.dart';
 import '../cubit/onboarding_cubit.dart';
 
@@ -20,24 +23,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _page = 0;
   bool _connecting = false;
 
-  static const _slides = [
-    _Slide(
-      title: 'Capture your ideas',
-      description: 'Start with a thought. Add a checklist, a photo or a voice recording when you need it.',
-      art: _WritingArt(),
-    ),
-    _Slide(
-      title: 'Give everything a place',
-      description: 'Group entries in categories, pin what matters and find it again with search.',
-      art: _CategoryArt(),
-    ),
-    _Slide(
-      title: 'Take your entries with you',
-      description: 'Sign in with Google to sync entries, categories and attachments across your devices. You can always work offline.',
-      art: _SyncArt(),
-    ),
-  ];
-
   void _go(int index) => _pages.animateToPage(
     index,
     duration: const Duration(milliseconds: 240),
@@ -47,10 +32,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _connect(CloudSyncController sync) async {
     setState(() => _connecting = true);
     try {
-      await sync.connect();
-      if (mounted && sync.isConnected) {
-        await context.read<OnboardingCubit>().complete();
-      }
+      final onboarding = context.read<OnboardingCubit>();
+      await sync.connect(beforeSwitch: onboarding.complete);
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -64,10 +47,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final slides = [
+      _Slide(
+        title: AppLocalizations.of(context)!.captureYourIdeas,
+        description: AppLocalizations.of(context)!
+            .startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt,
+        art: _WritingArt(),
+      ),
+      _Slide(
+        title: AppLocalizations.of(context)!.giveEverythingAPlace,
+        description: AppLocalizations.of(context)!
+            .groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch,
+        art: _CategoryArt(),
+      ),
+      _Slide(
+        title: AppLocalizations.of(context)!.takeYourEntriesWithYou,
+        description: AppLocalizations.of(
+          context,
+        )!.signInWithGoogleToSyncEntriesCategoriesAndAttachmentsAcrossYourDevicesYouCanAlwaysWorkOffline,
+        art: _SyncArt(),
+      ),
+    ];
+
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final sync = context.watch<CloudSyncController?>();
-    final lastPage = _page == _slides.length - 1;
+    final lastPage = _page == slides.length - 1;
     final complete = context.read<OnboardingCubit>().complete;
     final onboarding = context.watch<OnboardingCubit>().state;
     final busy = onboarding.isSaving || _connecting;
@@ -83,11 +88,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('Entries', style: theme.textTheme.titleLarge),
+                      child: Text(
+                        AppLocalizations.of(context)!.entries,
+                        style: theme.textTheme.titleLarge,
+                      ),
                     ),
                     TextButton(
                       onPressed: busy ? null : complete,
-                      child: const Text('Skip'),
+                      child: Text(AppLocalizations.of(context)!.skip),
                     ),
                   ],
                 ),
@@ -106,7 +114,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   controller: _pages,
                   physics: busy ? const NeverScrollableScrollPhysics() : null,
                   onPageChanged: (page) => setState(() => _page = page),
-                  children: _slides,
+                  children: slides,
                 ),
               ),
             ),
@@ -117,11 +125,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Column(
                   children: [
                     Semantics(
-                      label: 'Page ${_page + 1} of ${_slides.length}',
+                      label: AppLocalizations.of(context)!
+                          .onboardingPage(_page + 1, slides.length),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          for (var index = 0; index < _slides.length; index++)
+                          for (var index = 0; index < slides.length; index++)
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 170),
                               margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -143,7 +152,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Text(
-                            message,
+                            cloudSyncMessage(context, message),
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall,
                           ),
@@ -156,7 +165,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       if (_connecting) const LinearProgressIndicator(),
                       TextButton(
                         onPressed: busy ? null : complete,
-                        child: const Text('Continue offline'),
+                        child: Text(
+                          AppLocalizations.of(context)!.continueOffline,
+                        ),
                       ),
                     ] else
                       Row(
@@ -165,7 +176,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             Padding(
                               padding: const EdgeInsets.only(right: 10),
                               child: IconButton(
-                                tooltip: 'Back',
+                                tooltip: AppLocalizations.of(context)!.back,
                                 onPressed: busy ? null : () => _go(_page - 1),
                                 icon: const Icon(Icons.arrow_back),
                               ),
@@ -178,7 +189,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ? complete
                                   : () => _go(_page + 1),
                               child: Text(
-                                lastPage ? 'Start using Entries' : 'Next',
+                                lastPage
+                                    ? AppLocalizations.of(context)!
+                                          .startUsingEntries
+                                    : AppLocalizations.of(context)!.next,
                               ),
                             ),
                           ),

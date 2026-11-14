@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/features/entry/domain/entities/media_attachment.dart';
 import 'package:flutter_application_1/features/entry/presentation/entry_playback.dart';
@@ -15,6 +16,10 @@ void main() {
       ChangeNotifierProvider<EntryPlayback>.value(
         value: playback,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           home: Builder(
             builder: (context) => Scaffold(
               body: Column(

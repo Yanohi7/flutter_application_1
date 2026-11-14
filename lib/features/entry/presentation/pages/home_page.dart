@@ -1,7 +1,7 @@
 // Combine category selection, entry state, search and filters into the main entry grid
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
 import '../../../../core/ads/ad_banner.dart';
 import '../../../../core/presentation/widgets/app_ui.dart';
@@ -55,7 +55,6 @@ class _HomePageState extends State<HomePage> {
   EntryViewOptions _viewOptions = const EntryViewOptions();
   _EntryQueryKey? _lastQuery;
   List<Entry> _lastQueryResult = const [];
-
   @override
   void dispose() {
     _search.dispose();
@@ -64,7 +63,6 @@ class _HomePageState extends State<HomePage> {
 
   void _push(Widget page) =>
       Navigator.push<void>(context, MaterialPageRoute(builder: (_) => page));
-
   // Choose between separate entry and category forms without changing existing data
   Future<void> _openCreateMenu() async {
     final action = await showModalBottomSheet<_CreateAction>(
@@ -75,12 +73,12 @@ class _HomePageState extends State<HomePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.description_outlined),
-              title: const Text('New entry'),
+              title: Text(AppLocalizations.of(sheetContext)!.newEntry),
               onTap: () => Navigator.pop(sheetContext, _CreateAction.entry),
             ),
             ListTile(
               leading: const Icon(Icons.create_new_folder_outlined),
-              title: const Text('New category'),
+              title: Text(AppLocalizations.of(sheetContext)!.newCategory),
               onTap: () => Navigator.pop(sheetContext, _CreateAction.category),
             ),
             const SizedBox(height: 12),
@@ -102,8 +100,9 @@ class _HomePageState extends State<HomePage> {
       _favoritesOnly = false;
       _viewOptions = const EntryViewOptions();
     });
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Category created')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context)!.categoryCreated)),
+    );
   }
 
   Future<void> _openEditor() async {
@@ -120,8 +119,9 @@ class _HomePageState extends State<HomePage> {
       _favoritesOnly = false;
       _viewOptions = const EntryViewOptions();
     });
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Entry saved')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context)!.entrySaved)),
+    );
   }
 
   Future<void> _filters() async {
@@ -137,7 +137,11 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save the note size.')),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.couldNotSaveTheNoteSize,
+            ),
+          ),
         );
       }
     }
@@ -147,46 +151,53 @@ class _HomePageState extends State<HomePage> {
   Widget _emptyEntries({required int? categoryId, required bool busy}) {
     final colors = Theme.of(context).colorScheme;
     final hasFilters =
-        _viewOptions.time != 'All time' || _viewOptions.content != 'All types';
+        _viewOptions.time != AppLocalizations.of(context)!.allTime ||
+        _viewOptions.content != AppLocalizations.of(context)!.allTypes;
     late final IconData icon;
     late final String title;
     late final String message;
     late final String action;
     late final VoidCallback onAction;
-
     // Search and filters take precedence over the underlying category or favorites view
     if (_search.text.trim().isNotEmpty) {
       icon = Icons.search_off;
-      title = 'No search results';
+      title = AppLocalizations.of(context)!.noSearchResults;
       message = hasFilters
-          ? 'No entries match your search and filters in this view.'
-          : 'Try a different title or text, or search in all categories.';
-      action = hasFilters ? 'Clear search and filters' : 'Clear search';
+          ? AppLocalizations.of(context)!
+                .noEntriesMatchYourSearchAndFiltersInThisView
+          : AppLocalizations.of(context)!
+                .tryADifferentTitleOrTextOrSearchInAllCategories;
+      action = hasFilters
+          ? AppLocalizations.of(context)!.clearSearchAndFilters
+          : AppLocalizations.of(context)!.clearSearch;
       onAction = () => setState(() {
         _search.clear();
         _viewOptions = const EntryViewOptions();
       });
     } else if (hasFilters) {
       icon = Icons.filter_alt_off_outlined;
-      title = 'No matching entries';
-      message = 'Try another date range or content type for this view.';
-      action = 'Reset filters';
+      title = AppLocalizations.of(context)!.noMatchingEntries;
+      message = AppLocalizations.of(context)!
+          .tryAnotherDateRangeOrContentTypeForThisView;
+      action = AppLocalizations.of(context)!.resetFilters;
       onAction = () => setState(() => _viewOptions = const EntryViewOptions());
     } else if (categoryId == null && _favoritesOnly) {
       icon = Icons.star_outline;
-      title = 'No favorites yet';
-      message = 'Tap the star on an entry to keep it here.';
-      action = 'Show all entries';
+      title = AppLocalizations.of(context)!.noFavoritesYet;
+      message = AppLocalizations.of(context)!.tapTheStarOnAnEntryToKeepItHere;
+      action = AppLocalizations.of(context)!.showAllEntries;
       onAction = () => setState(() => _favoritesOnly = false);
     } else {
       icon = Icons.description_outlined;
       title = categoryId != null
-          ? 'This category is empty'
-          : 'Start with your first entry';
+          ? AppLocalizations.of(context)!.thisCategoryIsEmpty
+          : AppLocalizations.of(context)!.startWithYourFirstEntry;
       message = categoryId != null
-          ? 'Entries assigned directly to this category will appear here. Subcategories have their own entries.'
-          : 'Capture an idea and keep it organized.';
-      action = 'New entry';
+          ? AppLocalizations.of(
+              context,
+            )!.entriesAssignedDirectlyToThisCategoryWillAppearHereSubcategoriesHaveTheirOwnEntries
+          : AppLocalizations.of(context)!.captureAnIdeaAndKeepItOrganized;
+      action = AppLocalizations.of(context)!.newEntry;
       onAction = _openEditor;
     }
     return Center(
@@ -226,7 +237,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Entry> _visibleEntries(List<Entry> entries, int? selectedCategoryId) {
-    final now = _viewOptions.time == 'All time' ? null : DateTime.now();
+    final now = _viewOptions.time == AppLocalizations.of(context)!.allTime
+        ? null
+        : DateTime.now();
     final key = (
       source: entries,
       search: _search.text.trim().toLowerCase(),
@@ -269,8 +282,19 @@ class _HomePageState extends State<HomePage> {
       listener: (context, state) {
         if (ModalRoute.of(context)?.isCurrent == true &&
             state.status != EntryStatus.failure) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(switch (state.errorMessage) {
+                'Could not update the flag.' => AppLocalizations.of(
+                  context,
+                )!.couldNotUpdateFlag,
+                'Could not delete the entry.' => AppLocalizations.of(
+                  context,
+                )!.couldNotDeleteTheEntry,
+                _ => AppLocalizations.of(context)!.couldNotLoadEntries,
+              }),
+            ),
+          );
         }
       },
       builder: (context, state) {
@@ -281,10 +305,16 @@ class _HomePageState extends State<HomePage> {
         final busy = state.isSaving || state.status == EntryStatus.loading;
         return Scaffold(
           appBar: AppBar(
-            title: _favoritesOnly ? const Text('Favorites') : null,
+            title: _favoritesOnly
+                ? Text(
+                    AppLocalizations.of(context)!.favorites,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : null,
             actions: [
               IconButton(
-                tooltip: 'Search',
+                tooltip: AppLocalizations.of(context)!.search,
                 icon: Icon(_searchOpen ? Icons.close : Icons.search),
                 onPressed: () => setState(() {
                   _searchOpen = !_searchOpen;
@@ -292,19 +322,22 @@ class _HomePageState extends State<HomePage> {
                 }),
               ),
               IconButton(
-                tooltip: 'Filter & Sort',
+                tooltip: AppLocalizations.of(context)!.filterSort,
                 icon: Badge(
                   isLabelVisible:
-                      _viewOptions.sort != 'Newest' ||
-                      _viewOptions.time != 'All time' ||
-                      _viewOptions.content != 'All types',
+                      _viewOptions.sort !=
+                          AppLocalizations.of(context)!.newest ||
+                      _viewOptions.time !=
+                          AppLocalizations.of(context)!.allTime ||
+                      _viewOptions.content !=
+                          AppLocalizations.of(context)!.allTypes,
                   backgroundColor: colors.primary,
                   child: const Icon(Icons.swap_vert),
                 ),
                 onPressed: _filters,
               ),
               PopupMenuButton<NoteCardSize>(
-                tooltip: 'Note size',
+                tooltip: AppLocalizations.of(context)!.noteSize,
                 icon: Icon(appPreferences.noteCardSize.icon),
                 onSelected: _changeCardSize,
                 itemBuilder: (_) => [
@@ -312,12 +345,22 @@ class _HomePageState extends State<HomePage> {
                     CheckedPopupMenuItem(
                       value: size,
                       checked: size == appPreferences.noteCardSize,
-                      child: Text(size.label),
+                      child: Text(switch (size) {
+                        NoteCardSize.compact => AppLocalizations.of(
+                          context,
+                        )!.compact,
+                        NoteCardSize.standard => AppLocalizations.of(
+                          context,
+                        )!.standard,
+                        NoteCardSize.large => AppLocalizations.of(
+                          context,
+                        )!.large,
+                      }),
                     ),
                 ],
               ),
               IconButton(
-                tooltip: 'Profile',
+                tooltip: AppLocalizations.of(context)!.profile,
                 icon: const ProfileAvatar(diameter: 30),
                 onPressed: () => _push(const ProfilePage()),
               ),
@@ -340,12 +383,12 @@ class _HomePageState extends State<HomePage> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                             child: Text(
-                              'Your workspace',
+                              AppLocalizations.of(context)!.yourWorkspace,
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                           ),
                           _drawerItem(
-                            'All Entries',
+                            AppLocalizations.of(context)!.allEntries,
                             Icons.notes_outlined,
                             () => _navigateToNotes(favorites: false),
                             selected:
@@ -353,7 +396,7 @@ class _HomePageState extends State<HomePage> {
                                 !_favoritesOnly,
                           ),
                           _drawerItem(
-                            'Favorites',
+                            AppLocalizations.of(context)!.favorites,
                             Icons.star_outline,
                             () => _navigateToNotes(favorites: true),
                             selected:
@@ -362,12 +405,12 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 12),
                           _drawerItem(
-                            'Manage categories',
+                            AppLocalizations.of(context)!.manageCategoriesLabel,
                             Icons.folder_outlined,
                             () => openCategoryManagementPage(context),
                           ),
                           _drawerItem(
-                            'Settings',
+                            AppLocalizations.of(context)!.settings,
                             Icons.settings_outlined,
                             () => _push(const SettingsPage()),
                           ),
@@ -387,7 +430,7 @@ class _HomePageState extends State<HomePage> {
                           label: Text(
                             appPreferences.isPremium
                                 ? 'Premium'
-                                : 'Get Premium',
+                                : AppLocalizations.of(context)!.getPremium,
                           ),
                         ),
                       ),
@@ -399,7 +442,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           floatingActionButton: FloatingActionButton(
-            tooltip: 'New',
+            tooltip: AppLocalizations.of(context)!.newLabel,
             clipBehavior: Clip.antiAlias,
             onPressed: busy ? null : _openCreateMenu,
             child: const Icon(Icons.add, size: 30),
@@ -439,13 +482,15 @@ class _HomePageState extends State<HomePage> {
                                     autofocus: true,
                                     onChanged: (_) => setState(() {}),
                                     decoration: InputDecoration(
-                                      hintText: 'Search entries',
+                                      hintText: AppLocalizations.of(context)!
+                                          .searchEntries,
                                       prefixIcon: const Icon(
                                         Icons.search,
                                         size: 20,
                                       ),
                                       suffixIcon: IconButton(
-                                        tooltip: 'Clear search',
+                                        tooltip: AppLocalizations.of(context)!
+                                            .clearSearch,
                                         icon: const Icon(Icons.close, size: 18),
                                         onPressed: () =>
                                             setState(_search.clear),
@@ -461,8 +506,12 @@ class _HomePageState extends State<HomePage> {
                                           ChoiceChip(
                                             label: Text(
                                               global
-                                                  ? 'Global Search'
-                                                  : 'In Current Category',
+                                                  ? AppLocalizations.of(
+                                                      context,
+                                                    )!.globalSearch
+                                                  : AppLocalizations.of(
+                                                      context,
+                                                    )!.inCurrentCategory,
                                               style: TextStyle(
                                                 color: _globalSearch == global
                                                     ? colors.onPrimary
@@ -504,12 +553,17 @@ class _HomePageState extends State<HomePage> {
                                   children: [
                                     const Icon(Icons.error_outline, size: 36),
                                     const SizedBox(height: 12),
-                                    const Text('Could not open entries'),
+                                    Text(
+                                      AppLocalizations.of(context)!
+                                          .couldNotOpenEntries,
+                                    ),
                                     TextButton(
                                       onPressed: context
                                           .read<EntryCubit>()
                                           .loadEntries,
-                                      child: const Text('Try again'),
+                                      child: Text(
+                                        AppLocalizations.of(context)!.tryAgain,
+                                      ),
                                     ),
                                   ],
                                 ),

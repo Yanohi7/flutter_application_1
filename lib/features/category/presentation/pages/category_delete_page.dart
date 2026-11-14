@@ -1,5 +1,6 @@
 // Show deletion impact counts and require confirmation before removing a category branch
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -46,7 +47,8 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
     if (widget.category.isDefault) {
       setState(() {
         _loading = false;
-        _error = 'The default category cannot be deleted';
+        _error = AppLocalizations.of(context)!
+            .theDefaultCategoryCannotBeDeleted;
       });
       return;
     }
@@ -62,7 +64,9 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
       _loading = false;
       _summary = summary;
       if (summary == null) {
-        _error = cubit.state.errorMessage ?? 'Could not load deletion details';
+        _error =
+            cubit.state.errorMessage ??
+            AppLocalizations.of(context)!.couldNotLoadDeletionDetails;
       }
     });
   }
@@ -88,7 +92,7 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
         _deleting = false;
         _error =
             cubit.state.errorMessage ??
-            'Could not delete category. Please try again.';
+            AppLocalizations.of(context)!.couldNotDeleteCategoryPleaseTryAgain;
       });
       return;
     }
@@ -114,7 +118,7 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
       // Keep the confirmation page open while storage is changing
       canPop: !_deleting,
       child: AppDialog(
-        title: 'Delete category',
+        title: AppLocalizations.of(context)!.deleteCategory,
         onClose: _deleting ? null : () => Navigator.pop(context, false),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -127,22 +131,36 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
             const SizedBox(height: 20),
             if (_loading) const LinearProgressIndicator(),
             if (summary != null) ...[
-              const Text('Deleting this category will also delete:'),
+              Text(
+                AppLocalizations.of(context)!
+                    .deletingThisCategoryWillAlsoDelete,
+              ),
               const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.folder_outlined),
-                title: Text('${summary.descendantCategoryCount} subcategories'),
-                subtitle: const Text('Includes all nested levels'),
+                title: Text(
+                  AppLocalizations.of(context)!
+                      .categoryCount(summary.descendantCategoryCount),
+                ),
+                subtitle: Text(
+                  AppLocalizations.of(context)!.includesAllNestedLevels,
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.description_outlined),
-                title: Text('${summary.entryCount} entries'),
-                subtitle: const Text('Includes their attachments'),
+                title: Text(
+                  AppLocalizations.of(context)!.entryCount(summary.entryCount),
+                ),
+                subtitle: Text(
+                  AppLocalizations.of(context)!.includesTheirAttachments,
+                ),
               ),
               const SizedBox(height: 12),
-              const Text('This action cannot be undone in the app.'),
+              Text(
+                AppLocalizations.of(context)!.thisActionCannotBeUndoneInTheApp,
+              ),
             ],
             if (_error != null) ...[
               const SizedBox(height: 16),
@@ -150,7 +168,7 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
               if (summary == null && !widget.category.isDefault)
                 TextButton(
                   onPressed: _loading ? null : _loadSummary,
-                  child: const Text('Retry'),
+                  child: Text(AppLocalizations.of(context)!.retry),
                 ),
             ],
             const SizedBox(height: 24),
@@ -162,7 +180,7 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
                   onPressed: _deleting
                       ? null
                       : () => Navigator.of(context).pop(false),
-                  child: const Text('Cancel'),
+                  child: Text(AppLocalizations.of(context)!.cancel),
                 ),
                 FilledButton.icon(
                   onPressed:
@@ -183,7 +201,11 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.delete_outline),
-                  label: Text(_deleting ? 'Deleting…' : 'Delete category'),
+                  label: Text(
+                    _deleting
+                        ? AppLocalizations.of(context)!.deleting
+                        : AppLocalizations.of(context)!.deleteCategory,
+                  ),
                 ),
               ],
             ),

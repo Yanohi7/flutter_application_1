@@ -8,6 +8,18 @@ import '../theme/app_palette.dart';
 
 final appPreferences = AppPreferences();
 
+enum AppLanguage {
+  system(null),
+  english('en'),
+  ukrainian('uk'),
+  spanish('es'),
+  german('de'),
+  polish('pl');
+
+  const AppLanguage(this.code);
+  final String? code;
+}
+
 enum NoteCardSize {
   compact('Compact', Icons.view_comfy_alt_outlined),
   standard('Standard', Icons.grid_view_outlined),
@@ -56,6 +68,12 @@ class AppPreferences extends ChangeNotifier {
   bool _isSaving = false;
   bool _isExpandedPhotos = false;
   ThemeMode _mode = ThemeMode.system;
+  AppLanguage _language = AppLanguage.system;
+
+  AppLanguage get language => _language;
+
+  Future<void> setLanguage(AppLanguage value) => _save(language: value);
+
   AppPalette _palette = AppPalette.presets.first;
   NoteCardSize _noteCardSize = NoteCardSize.standard;
 
@@ -78,6 +96,7 @@ class AppPreferences extends ChangeNotifier {
     _themeTrials = {};
     _themeAdProgress = {};
     _mode = ThemeMode.system;
+    _language = AppLanguage.system;
     _palette = AppPalette.presets.first;
     _noteCardSize = NoteCardSize.standard;
     _isExpandedPhotos = false;
@@ -95,6 +114,10 @@ class AppPreferences extends ChangeNotifier {
       final stored = await _storage.getString(_activeStorageKey);
       if (stored != null) {
         final values = jsonDecode(stored) as Map<String, dynamic>;
+        _language = AppLanguage.values.firstWhere(
+          (item) => item.name == values['language'],
+          orElse: () => AppLanguage.system,
+        );
         _noteCardSize = NoteCardSize.values.firstWhere(
           (size) => size.name == values['noteCardSize'],
           orElse: () => NoteCardSize.standard,
@@ -180,6 +203,7 @@ class AppPreferences extends ChangeNotifier {
 
   Future<void> _save({
     ThemeMode? mode,
+    AppLanguage? language,
     AppPalette? palette,
     bool? isExpandedPhotos,
     bool? premiumPreviewEnabled,
@@ -206,6 +230,7 @@ class AppPreferences extends ChangeNotifier {
     final nextY = photoY ?? _photoY;
     final nextZoom = photoZoom ?? _photoZoom;
     final nextMode = mode ?? _mode;
+    final nextLanguage = language ?? _language;
     final nextPalette = palette ?? _palette;
     final nextExpandedPhotos = isExpandedPhotos ?? _isExpandedPhotos;
     final nextNoteCardSize = noteCardSize ?? _noteCardSize;
@@ -228,6 +253,7 @@ class AppPreferences extends ChangeNotifier {
           'photoY': nextY,
           'photoZoom': nextZoom,
           'mode': nextMode.name,
+          'language': nextLanguage.name,
           'palette': nextPalette.id,
           'isExpandedPhotos': nextExpandedPhotos,
           'noteCardSize': nextNoteCardSize.name,
@@ -249,6 +275,7 @@ class AppPreferences extends ChangeNotifier {
       _photoY = nextY;
       _photoZoom = nextZoom;
       _mode = nextMode;
+      _language = nextLanguage;
       _palette = nextPalette;
       _isExpandedPhotos = nextExpandedPhotos;
       _noteCardSize = nextNoteCardSize;

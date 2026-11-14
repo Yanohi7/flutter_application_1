@@ -3,7 +3,11 @@ import 'dart:convert';
 import 'datasources/drive_workspace_store.dart';
 
 /// Keeps local rows and imports differing live Drive entries as separate copies.
-String mergeWorkspaceCopies(String local, List<String> remoteCopies) {
+String mergeWorkspaceCopies(
+  String local,
+  List<String> remoteCopies, {
+  String? importFolder,
+}) {
   final merged = _decode(local);
   final categories = _rows(merged, 'categories');
   final entries = _rows(merged, 'entries');
@@ -37,14 +41,16 @@ String mergeWorkspaceCopies(String local, List<String> remoteCopies) {
         return false;
       }
       final id = entry['id'];
-      return jsonEncode(originalEntries[id]) != jsonEncode(entry) ||
+      return importFolder != null ||
+          jsonEncode(originalEntries[id]) != jsonEncode(entry) ||
           jsonEncode(originalAttachments[id]) !=
               jsonEncode(remoteAttachments[id]);
     }).toList();
     final byId = {for (final row in remoteCategories) row['id']: row};
     final neededCategories = {
       for (final row in remoteCategories)
-        if (jsonEncode(originalCategories[row['id']]) != jsonEncode(row))
+        if (importFolder != null ||
+            jsonEncode(originalCategories[row['id']]) != jsonEncode(row))
           row['id'],
       for (final entry in remoteEntries) entry['category_id'],
     };
@@ -63,8 +69,8 @@ String mergeWorkspaceCopies(String local, List<String> remoteCopies) {
     do {
       copyNumber++;
       name = copyNumber == 1
-          ? 'Google Drive copies'
-          : 'Google Drive copies $copyNumber';
+          ? (importFolder ?? 'Google Drive copies')
+          : '${importFolder ?? 'Google Drive copies'} $copyNumber';
     } while (!takenNames.add(name.toLowerCase()));
     final root = nextCategory++;
     final now = DateTime.now().toUtc().toIso8601String();

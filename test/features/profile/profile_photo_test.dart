@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -22,6 +24,10 @@ void main() {
     var closed = false;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -57,7 +63,12 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<ProfileStore?>.value(
         value: profile,
-        child: const MaterialApp(home: ProfilePage()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: ProfilePage(),
+        ),
       ),
     );
     expect(find.text('Remove photo'), findsNothing);
@@ -78,7 +89,8 @@ void main() {
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
     expect(profile.avatar, isNull);
-    expect(find.byTooltip('Add profile photo'), findsOneWidget);
+    expect(find.text('Add profile photo'), findsOneWidget);
+    expect(find.byTooltip('View profile photo'), findsNothing);
   });
 }
 

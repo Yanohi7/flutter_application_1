@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -25,12 +27,13 @@ Future<bool> confirmPhotoRemoval(
     await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -38,7 +41,7 @@ Future<bool> confirmPhotoRemoval(
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
+            child: Text(AppLocalizations.of(context)!.remove),
           ),
         ],
       ),
@@ -78,13 +81,18 @@ class AppDialog extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge,
+                    child: Tooltip(
+                      message: title,
+                      child: Text(
+                        title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Close',
+                    tooltip: AppLocalizations.of(context)!.close,
                     onPressed: onClose,
                     icon: const Icon(Icons.close),
                   ),

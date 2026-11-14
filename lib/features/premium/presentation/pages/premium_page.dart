@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/core/presentation/palette_labels.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/ads/mobile_ads_service.dart';
@@ -40,8 +42,11 @@ class PremiumDialog extends StatelessWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not update the preview. Please try again.'),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!
+                  .couldNotUpdateThePreviewPleaseTryAgain,
+            ),
           ),
         );
       }
@@ -54,7 +59,7 @@ class PremiumDialog extends StatelessWidget {
     builder: (context, _) {
       final theme = Theme.of(context);
       return AppDialog(
-        title: 'Get Premium',
+        title: AppLocalizations.of(context)!.getPremium,
         onClose: () => Navigator.pop(context),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -81,12 +86,14 @@ class PremiumDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Make space for your ideas',
+                    AppLocalizations.of(context)!.makeSpaceForYourIdeas,
                     style: theme.textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Beautiful color themes. A focused workspace. More room for what matters.',
+                  Text(
+                    AppLocalizations.of(
+                      context,
+                    )!.beautifulColorThemesAFocusedWorkspaceMoreRoomForWhatMatters,
                   ),
                 ],
               ),
@@ -94,39 +101,49 @@ class PremiumDialog extends StatelessWidget {
             const SizedBox(height: 16),
             if (trialBackground && entriesAds.rewardedId != null) ...[
               _TrialAction(
-                description: 'Unlock photo backgrounds for 24 hours.',
+                description: AppLocalizations.of(context)!
+                    .unlockPhotoBackgroundsFor24Hours,
                 completed: _preferences.completedPhotoAds,
                 recordReward: _preferences.recordPhotoAd,
                 preferences: _preferences,
               ),
               const SizedBox(height: 16),
             ],
-            const ListTile(
+            ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.palette_outlined),
-              title: Text('All Premium color themes'),
+              title: Text(AppLocalizations.of(context)!.allPremiumColorThemes),
               subtitle: Text(
-                'Coordinated colors in Light, Dark and System modes',
+                AppLocalizations.of(context)!
+                    .coordinatedColorsInLightDarkAndSystemModes,
               ),
             ),
-            const ListTile(
+            ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.block_outlined),
-              title: Text('An ad-free workspace'),
-              subtitle: Text('Keep the focus on your notes'),
+              title: Text(AppLocalizations.of(context)!.anAdFreeWorkspace),
+              subtitle: Text(
+                AppLocalizations.of(context)!.keepTheFocusOnYourNotes,
+              ),
             ),
-            const ListTile(
+            ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.wallpaper_outlined),
-              title: Text('Your own photo backgrounds'),
-              subtitle: Text('Custom framing, zoom and interface transparency'),
+              title: Text(
+                AppLocalizations.of(context)!.yourOwnPhotoBackgrounds,
+              ),
+              subtitle: Text(
+                AppLocalizations.of(context)!
+                    .customFramingZoomAndInterfaceTransparency,
+              ),
             ),
-            const ListTile(
+            ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.attach_file),
-              title: Text('Unlimited attachments'),
+              title: Text(AppLocalizations.of(context)!.unlimitedAttachments),
               subtitle: Text(
-                'Add as many files as you like without watching ads.',
+                AppLocalizations.of(context)!
+                    .addAsManyFilesAsYouLikeWithoutWatchingAds,
               ),
             ),
             const SizedBox(height: 12),
@@ -143,7 +160,10 @@ class PremiumDialog extends StatelessWidget {
                       children: [
                         PalettePreview(palette: palette),
                         const SizedBox(height: 4),
-                        Text(palette.name, style: theme.textTheme.bodySmall),
+                        Text(
+                          paletteLabel(context, palette),
+                          style: theme.textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -152,7 +172,8 @@ class PremiumDialog extends StatelessWidget {
             const SizedBox(height: 24),
             if (trialTheme != null && entriesAds.rewardedId != null)
               _TrialAction(
-                description: 'Try ${trialTheme!.name} for 24 hours.',
+                description: AppLocalizations.of(context)!
+                    .tryThemeFor24Hours(paletteLabel(context, trialTheme!)),
                 completed: _preferences.completedThemeAds(trialTheme!),
                 recordReward: () => _preferences.recordThemeAd(trialTheme!),
                 preferences: _preferences,
@@ -164,16 +185,16 @@ class PremiumDialog extends StatelessWidget {
                     : () => _preview(context),
                 child: Text(
                   _preferences.premiumPreviewEnabled
-                      ? 'End Premium preview'
-                      : 'Start Premium preview',
+                      ? AppLocalizations.of(context)!.endPremiumPreview
+                      : AppLocalizations.of(context)!.startPremiumPreview,
                 ),
               ),
             ],
             const SizedBox(height: 8),
             Text(
               _preferences.allowPremiumPreview
-                  ? 'Free preview. No payment required.'
-                  : 'Purchases are not available yet.',
+                  ? AppLocalizations.of(context)!.freePreviewNoPaymentRequired
+                  : AppLocalizations.of(context)!.purchasesAreNotAvailableYet,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall,
             ),
@@ -221,11 +242,12 @@ class _TrialActionState extends State<_TrialAction> {
         }
       } else if (mounted) {
         _message = result == RewardedAdResult.dismissed
-            ? 'Finish the ad for it to count.'
-            : 'An ad is unavailable right now. Try again later.';
+            ? AppLocalizations.of(context)!.finishTheAdForItToCount
+            : AppLocalizations.of(context)!
+                  .anAdIsUnavailableRightNowTryAgainLater;
       }
     } catch (_) {
-      _message = 'Could not save this reward.';
+      _message = AppLocalizations.of(context)!.couldNotSaveThisReward;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -242,7 +264,10 @@ class _TrialActionState extends State<_TrialAction> {
           onPressed: _busy || widget.preferences.isSaving ? null : _watch,
           icon: const Icon(Icons.play_circle_outline),
           label: Text(
-            _busy ? 'Loading ad…' : 'Watch ad ${widget.completed + 1} of 2',
+            _busy
+                ? AppLocalizations.of(context)!.loadingAd
+                : AppLocalizations.of(context)!
+                      .watchAdNumber(widget.completed + 1),
           ),
         ),
         if (_message case final String message)

@@ -1,8 +1,9 @@
-// Display consistent thumbnails and open photos over a dimmed background
-
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
 import '../../../../core/presentation/app_preferences.dart';
 import '../../domain/entities/media_attachment.dart';
@@ -23,98 +24,136 @@ class EntryPhotoGallery extends StatelessWidget {
 
   Future<void> _open(BuildContext context, int initialIndex) async {
     var index = initialIndex;
+    final pages = PageController(initialPage: initialIndex);
+    var zoomed = false;
     // Keep the open viewer independent from edits to the underlying draft
     final images = List<MediaAttachment>.of(photos);
-    await showDialog<void>(
+    void step(int direction) {
+      final target = index + direction;
+      if (!pages.hasClients || target < 0 || target >= images.length) return;
+      pages.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    }
+
+    final route = DialogRoute<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Dialog(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
-            child: SizedBox(
-              height: MediaQuery.sizeOf(context).height * 0.85,
-              child: Column(
-                children: [
-                  Row(
+      builder: (context) => CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.arrowLeft): () => step(-1),
+          const SingleActivator(LogicalKeyboardKey.arrowRight): () => step(1),
+        },
+        child: Focus(
+          autofocus: true,
+          child: StatefulBuilder(
+            builder: (context, setState) => Dialog(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.85,
+                  child: Column(
                     children: [
-                      Text(
-                        '${index + 1} / ${images.length}',
-                        style: const TextStyle(color: Colors.white),
+                      Row(
+                        children: [
+                          Text(
+                            '${index + 1} / ${images.length}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: AppLocalizations.of(context)!.closeImage,
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
                       ),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: 'Close image',
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close, color: Colors.white),
+                      Expanded(
+                        child: PageView.builder(
+                          controller: pages,
+                          scrollBehavior: ScrollConfiguration.of(context)
+                              .copyWith(
+                                dragDevices: {
+                                  ...ScrollConfiguration.of(context)
+                                      .dragDevices,
+                                  PointerDeviceKind.mouse,
+                                },
+                              ),
+                          physics: zoomed
+                              ? const NeverScrollableScrollPhysics()
+                              : null,
+                          itemCount: images.length,
+                          onPageChanged: (value) => setState(() {
+                            index = value;
+                            zoomed = false;
+                          }),
+                          itemBuilder: (context, page) => _GalleryImage(
+                            key: ValueKey(page),
+                            image: images[page],
+                            onZoomChanged: (value) {
+                              if (page == index && zoomed != value) {
+                                setState(() => zoomed = value);
+                              }
+                            },
+                          ),
+                        ),
                       ),
+                      if (images[index].displayName?.isNotEmpty == true)
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(
+                            images[index].displayName!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      if (images.length > 1)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              tooltip: AppLocalizations.of(context)!
+                                  .previousImage,
+                              onPressed: index > 0 ? () => step(-1) : null,
+                              icon: Icon(
+                                Icons.chevron_left,
+                                color: index > 0
+                                    ? Colors.white
+                                    : Colors.white30,
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            IconButton(
+                              tooltip: AppLocalizations.of(context)!.nextImage,
+                              onPressed: index < images.length - 1
+                                  ? () => step(1)
+                                  : null,
+                              icon: Icon(
+                                Icons.chevron_right,
+                                color: index < images.length - 1
+                                    ? Colors.white
+                                    : Colors.white30,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
-                  Expanded(
-                    child: InteractiveViewer(
-                      key: ValueKey(index),
-                      minScale: 1,
-                      maxScale: 5,
-                      child: Center(
-                        child: Image.file(
-                          File(images[index].localPath),
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const Text(
-                            'Could not open this image.',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (images[index].displayName?.isNotEmpty == true)
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        images[index].displayName!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  if (images.length > 1)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          tooltip: 'Previous image',
-                          onPressed: index > 0
-                              ? () => setState(() => index--)
-                              : null,
-                          icon: Icon(
-                            Icons.chevron_left,
-                            color: index > 0 ? Colors.white : Colors.white30,
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-                        IconButton(
-                          tooltip: 'Next image',
-                          onPressed: index < images.length - 1
-                              ? () => setState(() => index++)
-                              : null,
-                          icon: Icon(
-                            Icons.chevron_right,
-                            color: index < images.length - 1
-                                ? Colors.white
-                                : Colors.white30,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+    await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
+    pages.dispose();
   }
 
   Future<void> _layout(BuildContext context, bool isExpanded) async {
@@ -123,8 +162,11 @@ class EntryPhotoGallery extends StatelessWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not save the image layout. Please try again.'),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!
+                  .couldNotSaveTheImageLayoutPleaseTryAgain,
+            ),
           ),
         );
       }
@@ -143,28 +185,35 @@ class EntryPhotoGallery extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.centerRight,
-              child: SegmentedButton<bool>(
-                showSelectedIcon: false,
-                style: SegmentedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  textStyle: const TextStyle(fontSize: 12),
+              child: LayoutBuilder(
+                builder: (context, constraints) => SegmentedButton<bool>(
+                  direction:
+                      constraints.maxWidth <
+                          MediaQuery.textScalerOf(context).scale(190)
+                      ? Axis.vertical
+                      : Axis.horizontal,
+                  showSelectedIcon: false,
+                  style: SegmentedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                  segments: [
+                    ButtonSegment(
+                      value: false,
+                      icon: Icon(Icons.grid_view_outlined, size: 16),
+                      label: Text(AppLocalizations.of(context)!.grid),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      icon: Icon(Icons.view_agenda_outlined, size: 16),
+                      label: Text(AppLocalizations.of(context)!.full),
+                    ),
+                  ],
+                  selected: {isExpanded},
+                  onSelectionChanged: !isEnabled || appPreferences.isSaving
+                      ? null
+                      : (value) => _layout(context, value.single),
                 ),
-                segments: const [
-                  ButtonSegment(
-                    value: false,
-                    icon: Icon(Icons.grid_view_outlined, size: 16),
-                    label: Text('Grid'),
-                  ),
-                  ButtonSegment(
-                    value: true,
-                    icon: Icon(Icons.view_agenda_outlined, size: 16),
-                    label: Text('Full'),
-                  ),
-                ],
-                selected: {isExpanded},
-                onSelectionChanged: !isEnabled || appPreferences.isSaving
-                    ? null
-                    : (value) => _layout(context, value.single),
               ),
             ),
             const SizedBox(height: 8),
@@ -187,7 +236,7 @@ class EntryPhotoGallery extends StatelessWidget {
               )
             else
               Wrap(
-                alignment: WrapAlignment.center,
+                alignment: WrapAlignment.start,
                 spacing: 10,
                 runSpacing: 12,
                 children: [
@@ -242,7 +291,7 @@ class EntryPhotoGallery extends StatelessWidget {
                 child: Material(
                   type: MaterialType.transparency,
                   child: PopupMenuButton<String>(
-                    tooltip: 'Image actions',
+                    tooltip: AppLocalizations.of(context)!.imageActions,
                     enabled: isEnabled,
                     icon: const Icon(
                       Icons.more_horiz,
@@ -259,13 +308,17 @@ class EntryPhotoGallery extends StatelessWidget {
                         PopupMenuItem(
                           value: 'caption',
                           child: Text(
-                            caption.isEmpty ? 'Add caption' : 'Edit caption',
+                            caption.isEmpty
+                                ? AppLocalizations.of(context)!.addCaption
+                                : AppLocalizations.of(context)!.editCaption,
                           ),
                         ),
                       if (onRemove != null)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'remove',
-                          child: Text('Remove image'),
+                          child: Text(
+                            AppLocalizations.of(context)!.removeImage,
+                          ),
                         ),
                     ],
                   ),
@@ -290,4 +343,58 @@ class EntryPhotoGallery extends StatelessWidget {
       ],
     );
   }
+}
+
+class _GalleryImage extends StatefulWidget {
+  const _GalleryImage({
+    super.key,
+    required this.image,
+    required this.onZoomChanged,
+  });
+  final MediaAttachment image;
+  final ValueChanged<bool> onZoomChanged;
+
+  @override
+  State<_GalleryImage> createState() => _GalleryImageState();
+}
+
+class _GalleryImageState extends State<_GalleryImage> {
+  final _transform = TransformationController();
+  bool _zoomed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _transform.addListener(_updateZoom);
+  }
+
+  void _updateZoom() {
+    final zoomed = _transform.value.getMaxScaleOnAxis() > 1.01;
+    if (_zoomed == zoomed) return;
+    setState(() => _zoomed = zoomed);
+    widget.onZoomChanged(zoomed);
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => InteractiveViewer(
+    transformationController: _transform,
+    panEnabled: _zoomed,
+    maxScale: 5,
+    child: Center(
+      child: Image.file(
+        File(widget.image.localPath),
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => Text(
+          AppLocalizations.of(context)!.couldNotOpenThisImage,
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+    ),
+  );
 }

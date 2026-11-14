@@ -11,7 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class PrivateContentStore {
   static final cipher = AesGcm.with256bits();
   static final passwordRevision = ValueNotifier<int>(0);
-  static const minimumPasswordLength = 12;
+  static const minimumPasswordLength = 6;
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(resetOnError: false),
     // New private fields have no legacy Windows storage to migrate
@@ -25,6 +25,8 @@ class PrivateContentStore {
   static String get _biometricNamespace =>
       _workspaceKey('entries_private_biometric_namespace_v1');
   static String get _deviceRecoveryKey => _workspaceKey('entries_recovery_v1');
+  static String get _deferredScreenLock =>
+      _workspaceKey('entries_screen_lock_v1');
   static final _context = utf8.encode('entries.private-content.v1');
   static const _channel = MethodChannel('entries/privacy');
   static const _androidBiometricPrefix = 'entries_android_biometric_';
@@ -75,7 +77,28 @@ class PrivateContentStore {
       await _storage.containsKey(key: _biometricNamespace);
 
   static Future<bool> hasDeviceRecovery() async =>
-      supportsBiometrics && await _storage.containsKey(key: _deviceRecoveryKey);
+      supportsBiometrics &&
+      (await _storage.containsKey(key: _deviceRecoveryKey) ||
+          await _deferredStorage.containsKey(key: _deferredScreenLock));
+
+  static FlutterSecureStorage get _deferredStorage => Platform.isIOS
+      ? const FlutterSecureStorage(
+          iOptions: IOSOptions(
+            accountName: 'entrynote.screen-lock',
+            accessibility: KeychainAccessibility.unlocked_this_device,
+          ),
+        )
+      : _storage;
+
+  static Future<bool> hasScreenLock() async =>
+      supportsBiometrics &&
+      await _channel.invokeMethod<bool>('hasScreenLock') == true;
+
+  static Future<void> openScreenLockSettings() async {
+    if (Platform.isAndroid) {
+      await _channel.invokeMethod<void>('openScreenLockSettings');
+    }
+  }
 
   static FlutterSecureStorage _iosDeviceRecovery(String account) =>
       FlutterSecureStorage(
@@ -87,14 +110,43 @@ class PrivateContentStore {
         ),
       );
 
-  // Keep the recovery copy local and require the phone's existing screen lock.
+  // Keep a device-only copy. On a phone without a passcode, require the
+  // system credential prompt before releasing the copy after enrollment.
   static Future<void> prepareDeviceRecovery(SecretKey key) async {
     if (!supportsBiometrics) return;
     final alias = _deviceRecoveryKey;
     try {
-      if (await _storage.containsKey(key: alias)) return;
+      if (await _storage.containsKey(key: alias)) {
+        final missing = await _channel.invokeMethod<bool>(
+          'isScreenLockKeyMissing',
+          alias,
+        );
+        if (missing != true) return;
+        await _storage.delete(key: alias);
+      }
+      final hasLock = await hasScreenLock();
+      final hasDeferred = await _deferredStorage.containsKey(
+        key: _deferredScreenLock,
+      );
+      if (!hasLock && hasDeferred) return;
       final bytes = Uint8List.fromList(await key.extractBytes());
       try {
+        if (!hasLock) {
+          final protectedBytes = Platform.isAndroid
+              ? await _androidBiometricOperation(
+                  'wrapDeferredScreenLockKey',
+                  alias,
+                  bytes,
+                )
+              : bytes;
+          if (protectedBytes != null) {
+            await _deferredStorage.write(
+              key: _deferredScreenLock,
+              value: base64Encode(protectedBytes),
+            );
+          }
+          return;
+        }
         if (Platform.isAndroid) {
           final wrapped = await _androidBiometricOperation(
             'wrapDeviceRecoveryKey',
@@ -103,31 +155,63 @@ class PrivateContentStore {
           );
           if (wrapped != null) {
             await _storage.write(key: alias, value: base64Encode(wrapped));
+            if (hasDeferred) await _removeDeferredScreenLock(alias);
           }
         } else {
           await _iosDeviceRecovery(alias)
               .write(key: 'private_key', value: base64Encode(bytes));
           await _storage.write(key: alias, value: '1');
+          if (hasDeferred) await _removeDeferredScreenLock(alias);
         }
       } finally {
         bytes.fillRange(0, bytes.length, 0);
       }
     } catch (_) {
-      // Password access must still work on phones without a screen lock.
+      // A private password works even if the device has no screen lock.
     }
   }
 
-  static Future<SecretKeyData?> unlockWithDeviceRecovery() async {
+  static Future<void> _removeDeferredScreenLock(String alias) async {
+    try {
+      await _deferredStorage.delete(key: _deferredScreenLock);
+      if (Platform.isAndroid) {
+        await _channel.invokeMethod<void>('deleteDeferredScreenLockKey', alias);
+      }
+    } catch (_) {
+      // The new credential-bound copy has already been committed.
+    }
+  }
+
+  static Future<SecretKeyData?> unlockWithDeviceRecovery({
+    required String prompt,
+  }) async {
     if (!supportsBiometrics) return null;
     final alias = _deviceRecoveryKey;
     final saved = await _storage.read(key: alias);
-    if (saved == null) {
+    if (!await hasPassword()) {
       throw const FormatException(
         'Device recovery was not set up on this phone.',
       );
     }
     Uint8List? bytes;
-    if (Platform.isAndroid) {
+    if (saved == null) {
+      if (Platform.isIOS &&
+          await _channel.invokeMethod<bool>('verifyScreenLock', prompt) !=
+              true) {
+        return null;
+      }
+      final deferred = await _deferredStorage.read(key: _deferredScreenLock);
+      if (deferred == null) return null;
+      if (Platform.isAndroid) {
+        bytes = await _androidBiometricOperation(
+          'unwrapDeferredScreenLockKey',
+          alias,
+          base64Decode(deferred),
+        );
+      } else {
+        bytes = base64Decode(deferred);
+      }
+    } else if (Platform.isAndroid) {
       bytes = await _androidBiometricOperation(
         'unwrapDeviceRecoveryKey',
         alias,
@@ -140,7 +224,7 @@ class PrivateContentStore {
         if (encoded != null) bytes = base64Decode(encoded);
       } on PlatformException {
         throw const FormatException(
-          'Could not verify your screen lock. Try again or use your recovery file.',
+          'Could not verify your screen lock. Try again.',
         );
       }
     }
@@ -153,7 +237,7 @@ class PrivateContentStore {
       if (bytes.length != 32 ||
           (keyId != null && keyId != await _fingerprint(bytes))) {
         throw const FormatException(
-          'This recovery key belongs to a different workspace.',
+          'Screen lock access belongs to a different workspace.',
         );
       }
       return SecretKeyData(List<int>.from(bytes), overwriteWhenDestroyed: true);
@@ -190,7 +274,7 @@ class PrivateContentStore {
   static Future<void> setPassword(SecretKey key, String password) async {
     if (password.length < minimumPasswordLength) {
       throw const FormatException(
-        'Use at least 12 characters for the private password.',
+        'Use at least 6 characters for the private password.',
       );
     }
     final storageKey = _passwordEnvelope;
@@ -239,58 +323,6 @@ class PrivateContentStore {
     passwordRevision.value++;
   }
 
-  static Future<Uint8List> exportRecoveryFile(SecretKey key) async {
-    return Uint8List.fromList(
-      utf8.encode(
-        jsonEncode({
-          'format': 'entrynote-recovery-key',
-          'version': 1,
-          'key': base64UrlEncode(await key.extractBytes()),
-        }),
-      ),
-    );
-  }
-
-  static Future<SecretKeyData> unlockWithRecoveryFile(
-    Uint8List contents, {
-    required String payload,
-  }) async {
-    final envelope = await readSyncPasswordEnvelope();
-    if ((envelope == null && payload.isEmpty) || contents.length > 4096) {
-      throw const FormatException('This file cannot unlock this workspace.');
-    }
-    final decoded = jsonDecode(utf8.decode(contents));
-    if (decoded is! Map ||
-        decoded['format'] != 'entrynote-recovery-key' ||
-        decoded['version'] != 1 ||
-        decoded['key'] is! String) {
-      throw const FormatException('Choose an EntryNote recovery file.');
-    }
-    final bytes = base64Url.decode(decoded['key'] as String);
-    if (bytes.length != 32) {
-      throw const FormatException('The recovery file is invalid.');
-    }
-    final key = SecretKeyData(bytes, overwriteWhenDestroyed: true);
-    try {
-      final data = envelope == null
-          ? null
-          : jsonDecode(envelope) as Map<String, dynamic>;
-      final keyId = data?['keyId'];
-      if (keyId == null && payload.isNotEmpty) {
-        // Existing backups can prove key ownership with an encrypted entry.
-        await decrypt(payload, key);
-      } else if (keyId != await _fingerprint(bytes)) {
-        throw const FormatException(
-          'This recovery file belongs to a different workspace.',
-        );
-      }
-      return key;
-    } catch (_) {
-      key.destroy();
-      rethrow;
-    }
-  }
-
   static Future<SecretKeyData> unlockWithPassword(
     String password, {
     required bool isExisting,
@@ -319,6 +351,14 @@ class PrivateContentStore {
         key.destroy();
       }
     }
+    return unlockPasswordEnvelope(envelope, password);
+  }
+
+  /// Unlock a backup key without replacing the active workspace password.
+  static Future<SecretKeyData> unlockPasswordEnvelope(
+    String envelope,
+    String password,
+  ) async {
     final data = jsonDecode(envelope) as Map<String, dynamic>;
     if (data['v'] != 1) {
       throw const FormatException('Unsupported private key format.');
@@ -355,23 +395,35 @@ class PrivateContentStore {
     if (!supportsBiometrics) return null;
     final namespace = await _storage.read(key: _biometricNamespace);
     if (namespace == null) return null;
+    final List<int>? bytes;
     if (namespace.startsWith(_androidBiometricPrefix)) {
       final sealed = await _storage.read(key: namespace);
       if (sealed == null) return null;
-      final bytes = await _androidBiometricOperation(
+      bytes = await _androidBiometricOperation(
         'unwrapBiometricKey',
         namespace,
         base64Decode(sealed),
       );
-      return bytes == null
-          ? null
-          : SecretKeyData(bytes, overwriteWhenDestroyed: true);
+    } else {
+      // Existing Android enrollments still use their original secure storage.
+      final encoded = await _biometricStorage(namespace)
+          .read(key: 'private_key');
+      bytes = encoded == null ? null : base64Decode(encoded);
     }
-    // Existing Android enrollments still use their original secure storage.
-    final encoded = await _biometricStorage(namespace).read(key: 'private_key');
-    return encoded == null
-        ? null
-        : SecretKeyData(base64Decode(encoded), overwriteWhenDestroyed: true);
+    if (bytes == null) return null;
+    try {
+      final envelope = await readSyncPasswordEnvelope();
+      final keyId = envelope == null
+          ? null
+          : (jsonDecode(envelope) as Map<String, dynamic>)['keyId'];
+      if (bytes.length != 32 ||
+          (keyId != null && keyId != await _fingerprint(bytes))) {
+        return null;
+      }
+      return SecretKeyData(List<int>.from(bytes), overwriteWhenDestroyed: true);
+    } finally {
+      bytes.fillRange(0, bytes.length, 0);
+    }
   }
 
   static Future<bool> enableBiometrics(SecretKey key) async {

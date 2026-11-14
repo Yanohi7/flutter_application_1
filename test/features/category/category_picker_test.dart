@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,10 @@ void main() {
     CategorySelection? result;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -61,6 +66,10 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           home: Builder(
             builder: (context) => Scaffold(
               body: TextButton(
@@ -97,6 +106,10 @@ void main() {
     CategorySelection? result;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -136,6 +149,10 @@ void main() {
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -160,6 +177,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+
         home: Scaffold(
           body: Align(
             alignment: Alignment.topLeft,

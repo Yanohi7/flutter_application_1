@@ -1,5 +1,6 @@
 // Group live recording levels, duration and pause or stop controls in one surface
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 class EntryRecordingPanel extends StatelessWidget {
@@ -44,7 +45,9 @@ class EntryRecordingPanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  isPaused ? 'Paused' : 'Recording',
+                  isPaused
+                      ? AppLocalizations.of(context)!.paused
+                      : AppLocalizations.of(context)!.recording,
                   style: theme.textTheme.titleSmall,
                 ),
               ),
@@ -98,12 +101,16 @@ class EntryRecordingPanel extends StatelessWidget {
                   isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                   size: 20,
                 ),
-                label: Text(isPaused ? 'Resume' : 'Pause'),
+                label: Text(
+                  isPaused
+                      ? AppLocalizations.of(context)!.resume
+                      : AppLocalizations.of(context)!.pause,
+                ),
               ),
               FilledButton.icon(
                 onPressed: isBusy ? null : onStop,
                 icon: const Icon(Icons.stop_rounded, size: 20),
-                label: const Text('Finish'),
+                label: Text(AppLocalizations.of(context)!.finish),
               ),
             ],
           ),

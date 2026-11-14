@@ -150,6 +150,8 @@ abstract final class AppTheme {
         fillColor: surface.withValues(alpha: opacity),
         isDense: true,
         hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+        helperMaxLines: 4,
+        errorMaxLines: 4,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,

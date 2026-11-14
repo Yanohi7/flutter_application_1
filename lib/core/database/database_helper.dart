@@ -2,11 +2,35 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'entries_database_migration.dart';
+
+class LocalUserAccount {
+  final int id;
+  final String? googleAccountId;
+  final String? googleEmail;
+  final String displayName;
+  final Uint8List? avatar;
+  final String? avatarOriginalPath;
+  final String createdAt;
+
+  const LocalUserAccount({
+    required this.id,
+    this.googleAccountId,
+    this.googleEmail,
+    required this.displayName,
+    this.avatar,
+    this.avatarOriginalPath,
+    required this.createdAt,
+  });
+
+  bool get isGuest => googleAccountId == null;
+}
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -14,13 +38,28 @@ class DatabaseHelper {
   Future<Database>?
   _opening; // Concurrent requests share the same opening operation
   final String? _databasePath;
+  final DatabaseHelper? _source;
+  final int? userId;
+  String get _activeUserKey => _databasePath == null
+      ? 'entries_active_user_id'
+      : 'entries_active_user_id_$_databasePath';
+  int? _activeUserId;
 
-  DatabaseHelper._init() : _databasePath = null;
+  int? get activeUserId => userId ?? _activeUserId;
+  DatabaseHelper._init() : _databasePath = null, _source = null, userId = null;
 
   // Tests use a separate database and never delete app entries
-  DatabaseHelper.forTesting(String databasePath) : _databasePath = databasePath;
+  DatabaseHelper.forTesting(String databasePath)
+    : _databasePath = databasePath,
+      _source = null,
+      userId = null;
+
+  DatabaseHelper.forUser(DatabaseHelper source, this.userId)
+    : _source = source,
+      _databasePath = null;
 
   Future<Database> get database async {
+    if (_source case final source?) return source.database;
     if (_database != null) return _database!;
     try {
       _opening ??= _initDB();
@@ -79,7 +118,7 @@ class DatabaseHelper {
     final path = await _resolvePath();
     return await openDatabase(
       path,
-      version: 7,
+      version: 9,
       // Enable SQLite relationship checks on every opened connection
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON;');
@@ -177,8 +216,138 @@ class DatabaseHelper {
             'ALTER TABLE profiles ADD COLUMN avatar_original_path TEXT;',
           );
         }
+        if (oldVersion < 8) await _addAccountColumns(db);
+        if (oldVersion < 9) await _createGuestTransfer(db);
       },
     );
+  }
+
+  Future<int> initActiveUser() async {
+    final prefs = SharedPreferencesAsync();
+    final savedId = await prefs.getInt(_activeUserKey);
+    final db = await database;
+    if (savedId != null) {
+      final exists = await db.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [savedId],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) {
+        _activeUserId = savedId;
+        return savedId;
+      }
+    }
+    await ensureDefaultCategory();
+    final guestId = await workspaceUserId();
+    _activeUserId = guestId;
+    return guestId;
+  }
+
+  Future<void> switchUser(int id) async {
+    final prefs = SharedPreferencesAsync();
+    await prefs.setInt(_activeUserKey, id);
+    _activeUserId = id;
+  }
+
+  Future<List<LocalUserAccount>> getLocalAccounts() async {
+    await guestUserId();
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT users.id, users.google_account_id, users.google_email, users.created_at,
+             profiles.display_name, profiles.avatar_image, profiles.avatar_original_path
+      FROM users
+      LEFT JOIN profiles ON users.id = profiles.user_id
+      ORDER BY CASE WHEN users.google_account_id IS NULL THEN 0 ELSE 1 END, users.id ASC
+    ''');
+    return rows.map((r) {
+      final googleId = r['google_account_id'] as String?;
+      final email = r['google_email'] as String?;
+      final name = r['display_name'] as String?;
+      return LocalUserAccount(
+        id: r['id'] as int,
+        googleAccountId: googleId,
+        googleEmail: email,
+        displayName:
+            (name?.trim().isNotEmpty == true &&
+                (name != 'Guest' || googleId == null))
+            ? name!.trim()
+            : (googleId == null ? 'Guest' : (email ?? 'Google account')),
+        avatar: r['avatar_image'] as Uint8List?,
+        avatarOriginalPath: r['avatar_original_path'] as String?,
+        createdAt: r['created_at'] as String? ?? '',
+      );
+    }).toList();
+  }
+
+  Future<int> guestUserId() =>
+      DatabaseHelper.forUser(this, null).workspaceUserId();
+
+  Future<LocalUserAccount> getOrCreateGoogleAccount({
+    required String googleAccountId,
+    required String email,
+    String? displayName,
+    Uint8List? avatar,
+  }) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final now = DateTime.now().toIso8601String();
+      final existing = await txn.query(
+        'users',
+        where: 'google_account_id = ?',
+        whereArgs: [googleAccountId],
+        limit: 1,
+      );
+      final int resolvedUserId;
+      if (existing.isNotEmpty) {
+        resolvedUserId = existing.first['id'] as int;
+        await txn.update(
+          'users',
+          {'google_email': email},
+          where: 'id = ?',
+          whereArgs: [resolvedUserId],
+        );
+      } else {
+        resolvedUserId = await txn.insert('users', {
+          'google_account_id': googleAccountId,
+          'google_email': email,
+          'created_at': now,
+        });
+        final name = displayName?.trim().isNotEmpty == true
+            ? displayName!.trim()
+            : 'Guest';
+        await txn.insert('profiles', {
+          'user_id': resolvedUserId,
+          'display_name': name,
+          'avatar_image': avatar,
+          'created_at': now,
+        });
+        await txn.insert('categories', {
+          'user_id': resolvedUserId,
+          'name': 'General',
+          'is_system': 1,
+          'is_default': 1,
+          'created_at': now,
+          'updated_at': now,
+        });
+      }
+      final prof = await txn.query(
+        'profiles',
+        where: 'user_id = ?',
+        whereArgs: [resolvedUserId],
+        limit: 1,
+      );
+      final profRow = prof.singleOrNull;
+      return LocalUserAccount(
+        id: resolvedUserId,
+        googleAccountId: googleAccountId,
+        googleEmail: email,
+        displayName: (profRow?['display_name'] as String?) ?? email,
+        avatar: profRow?['avatar_image'] as Uint8List?,
+        avatarOriginalPath: profRow?['avatar_original_path'] as String?,
+        createdAt: now,
+      );
+    });
   }
 
   /// Prepare the minimum data for the first entry without clearing existing tables
@@ -187,23 +356,30 @@ class DatabaseHelper {
     // The transaction commits all inserts together or rolls them all back
     return db.transaction((txn) async {
       final now = DateTime.now().toIso8601String();
-      final users = await txn.query('users', orderBy: 'id ASC', limit: 1);
-      // Authentication is not implemented yet; use the first local profile
-      final int userId;
+      final currentId = activeUserId;
+      final users = await txn.query(
+        'users',
+        where: currentId == null ? 'google_account_id IS NULL' : 'id = ?',
+        whereArgs: [?currentId],
+        orderBy: 'id ASC',
+        limit: 1,
+      );
+      final int resolvedUserId;
       if (users.isEmpty) {
-        userId = await txn.insert('users', {'created_at': now});
+        if (currentId != null) throw StateError('Local account not found.');
+        resolvedUserId = await txn.insert('users', {'created_at': now});
         await txn.insert('profiles', {
-          'user_id': userId,
+          'user_id': resolvedUserId,
           'display_name': 'Guest',
           'created_at': now,
         });
       } else {
-        userId = users.first['id'] as int;
+        resolvedUserId = users.first['id'] as int;
       }
       final defaults = await txn.query(
         'categories',
         where: 'user_id = ? AND is_default = 1',
-        whereArgs: [userId],
+        whereArgs: [resolvedUserId],
         limit: 1,
       );
       if (defaults.isNotEmpty) {
@@ -220,7 +396,7 @@ class DatabaseHelper {
       final existing = await txn.query(
         'categories',
         where: 'user_id = ? AND parent_id IS NULL AND name = ?',
-        whereArgs: [userId, 'General'],
+        whereArgs: [resolvedUserId, 'General'],
         limit: 1,
       );
       if (existing.isNotEmpty) {
@@ -240,7 +416,7 @@ class DatabaseHelper {
         return id;
       }
       return txn.insert('categories', {
-        'user_id': userId,
+        'user_id': resolvedUserId,
         'name': 'General',
         'is_system': 1,
         'is_default': 1,
@@ -252,6 +428,7 @@ class DatabaseHelper {
 
   /// Close the connection, including between file-reopening tests
   Future<void> close() async {
+    if (_source != null) return;
     final opened = _database ?? (await _opening);
     await opened?.close();
     _database = null;
@@ -358,5 +535,68 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX idx_media_entry ON media_attachments (entry_id);',
     );
+    await _addAccountColumns(db);
+    await _createGuestTransfer(db);
+  }
+
+  Future<void> _addAccountColumns(Database db) async {
+    await db.execute('ALTER TABLE users ADD COLUMN google_account_id TEXT');
+    await db.execute('ALTER TABLE users ADD COLUMN google_email TEXT');
+    await db.execute(
+      'CREATE UNIQUE INDEX idx_users_google ON users(google_account_id)',
+    );
+    for (final table in ['categories', 'entries', 'media_attachments']) {
+      await db.execute('ALTER TABLE $table ADD COLUMN sync_id INTEGER');
+    }
+  }
+
+  Future<void> _createGuestTransfer(Database db) => db.execute('''
+    CREATE TABLE guest_transfer (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      guest_id INTEGER NOT NULL REFERENCES users(id),
+      target_id INTEGER NOT NULL REFERENCES users(id),
+      guest_digest TEXT NOT NULL
+    )
+  ''');
+
+  Future<int> migrateLegacyGoogleOwner(String googleId) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final linked = await txn.query(
+        'users',
+        columns: ['id'],
+        where: 'google_account_id = ?',
+        whereArgs: [googleId],
+      );
+      if (linked.isNotEmpty) return linked.single['id'] as int;
+      final original = (await txn.query(
+        'users',
+        orderBy: 'id',
+        limit: 1,
+      )).single;
+      final id = original['id'] as int;
+      if (original['google_account_id'] == null) {
+        await txn.update(
+          'users',
+          {'google_account_id': googleId},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+      return id;
+    });
+  }
+
+  Future<int> workspaceUserId() async {
+    if (activeUserId case final id?) return id;
+    final category = await ensureDefaultCategory();
+    final db = await database;
+    return (await db.query(
+          'categories',
+          columns: ['user_id'],
+          where: 'id = ?',
+          whereArgs: [category],
+        )).single['user_id']
+        as int;
   }
 }

@@ -56,25 +56,43 @@ Future<void> startEntries({
   }
   final database =
       await (prepareWorkspace?.call() ?? Future.value(DatabaseHelper.instance));
+  if (await GoogleAccountRemoteDataSource.isSupported()) {
+    final sync = CloudSyncController(
+      database,
+      testWorkspace: testWorkspaceNamespace != null,
+      testWorkspaceName: testWorkspaceNamespace,
+    );
+    try {
+      await sync.load();
+      runApp(
+        ListenableBuilder(
+          listenable: sync.workspaceRevision,
+          builder: (_, _) => MyApp(
+            key: ValueKey(sync.activeUserId),
+            database: sync.activeDatabase,
+            profile: sync.profile,
+            cloudSync: sync,
+            repeatOnboarding: repeatOnboarding,
+          ),
+        ),
+      );
+      sync.scheduleInitialSync();
+      return;
+    } catch (error) {
+      sync.dispose();
+      debugPrint('Could not initialize Google Drive: ${error.runtimeType}');
+    }
+  }
   final profile = kIsWeb ? null : ProfileStore(database);
   try {
     await profile?.load();
   } catch (error) {
     debugPrint('Could not load the local profile: $error');
   }
-  final sync = await GoogleAccountRemoteDataSource.isSupported()
-      ? (CloudSyncController(
-          database,
-          testWorkspace: testWorkspaceNamespace != null,
-          testWorkspaceName: testWorkspaceNamespace,
-        )..load())
-      : null;
-  if (sync != null) profile?.addListener(sync.workspaceChanged);
   runApp(
     MyApp(
       database: database,
       profile: profile,
-      cloudSync: sync,
       repeatOnboarding: repeatOnboarding,
     ),
   );

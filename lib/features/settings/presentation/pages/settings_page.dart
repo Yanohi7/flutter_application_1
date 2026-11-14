@@ -1,9 +1,12 @@
+import 'package:flutter_application_1/core/presentation/palette_labels.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/ads/mobile_ads_service.dart';
 import '../../../../core/presentation/app_preferences.dart';
 import '../../../../core/presentation/widgets/app_ui.dart';
 import '../../../../core/theme/app_palette.dart';
+import '../../../entry/presentation/pages/private_content_page.dart';
 import '../../../premium/presentation/pages/premium_page.dart';
 import '../../../../core/presentation/widgets/wallpaper.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -11,10 +14,8 @@ import '../widgets/background_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, this.preferences});
-
   final AppPreferences? preferences;
   AppPreferences get _preferences => preferences ?? appPreferences;
-
   Future<void> _save(
     BuildContext context,
     Future<void> Function() change,
@@ -24,10 +25,46 @@ class SettingsPage extends StatelessWidget {
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save your preferences. Please try again.'),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!
+                .couldNotSaveYourPreferencesPleaseTryAgain,
+          ),
         ),
       );
+    }
+  }
+
+  String _languageName(BuildContext context, AppLanguage language) =>
+      switch (language) {
+        AppLanguage.system => AppLocalizations.of(context)!.deviceLanguage,
+        AppLanguage.english => 'English',
+        AppLanguage.ukrainian => 'Українська',
+        AppLanguage.spanish => 'Español',
+        AppLanguage.german => 'Deutsch',
+        AppLanguage.polish => 'Polski',
+      };
+  Future<void> _chooseLanguage(BuildContext context) async {
+    final language = await showDialog<AppLanguage>(
+      context: context,
+      builder: (dialog) => SimpleDialog(
+        title: Text(AppLocalizations.of(context)!.language),
+        children: [
+          for (final language in AppLanguage.values)
+            ListTile(
+              title: Text(_languageName(context, language)),
+              trailing: language == _preferences.language
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () => Navigator.pop(dialog, language),
+            ),
+        ],
+      ),
+    );
+    if (context.mounted &&
+        language != null &&
+        language != _preferences.language) {
+      await _save(context, () => _preferences.setLanguage(language));
     }
   }
 
@@ -38,7 +75,7 @@ class SettingsPage extends StatelessWidget {
       final colors = Theme.of(context).colorScheme;
       final busy = _preferences.isSaving;
       return Scaffold(
-        appBar: AppBar(title: const Text('Settings')),
+        appBar: AppBar(title: Text(AppLocalizations.of(context)!.settings)),
         body: SafeArea(
           top: false,
           child: Center(
@@ -48,15 +85,49 @@ class SettingsPage extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 children: [
                   ReadablePanel(
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.language),
+                      title: Text(AppLocalizations.of(context)!.language),
+                      subtitle: Text(
+                        _languageName(context, _preferences.language),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: busy ? null : () => _chooseLanguage(context),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  ReadablePanel(
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.lock_outline),
+                      title: Text(AppLocalizations.of(context)!.security),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const PrivateContentPage(
+                            payload: '',
+                            isEditable: false,
+                            securitySettings: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  ReadablePanel(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'App Brightness Theme',
+                          AppLocalizations.of(context)!.appBrightnessTheme,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
-                        const Text('Choose a mode, or follow your device.'),
+                        Text(
+                          AppLocalizations.of(context)!
+                              .chooseAModeOrFollowYourDevice,
+                        ),
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
@@ -65,17 +136,17 @@ class SettingsPage extends StatelessWidget {
                             for (final item in [
                               (
                                 ThemeMode.light,
-                                'Light',
+                                AppLocalizations.of(context)!.light,
                                 Icons.light_mode_outlined,
                               ),
                               (
                                 ThemeMode.dark,
-                                'Dark',
+                                AppLocalizations.of(context)!.dark,
                                 Icons.dark_mode_outlined,
                               ),
                               (
                                 ThemeMode.system,
-                                'System',
+                                AppLocalizations.of(context)!.system,
                                 Icons.brightness_auto_outlined,
                               ),
                             ])
@@ -114,7 +185,7 @@ class SettingsPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'App Color Theme',
+                          AppLocalizations.of(context)!.appColorTheme,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
@@ -157,7 +228,9 @@ class SettingsPage extends StatelessWidget {
                                   );
                                 }
                               },
-                              child: const Text('Ad privacy choices'),
+                              child: Text(
+                                AppLocalizations.of(context)!.adPrivacyChoices,
+                              ),
                             ),
                           ),
                   ),
@@ -169,7 +242,6 @@ class SettingsPage extends StatelessWidget {
       );
     },
   );
-
   Widget _palette(BuildContext context, AppPalette palette) {
     final colors = Theme.of(context).colorScheme;
     final selected = _preferences.palette.id == palette.id;
@@ -177,7 +249,8 @@ class SettingsPage extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      label: '${palette.name}${locked ? ', Premium required' : ''}',
+      label:
+          '${paletteLabel(context, palette)}${locked ? ', ${AppLocalizations.of(context)!.premiumRequired}' : ''}',
       child: SizedBox(
         width:
             68 *
@@ -185,7 +258,8 @@ class SettingsPage extends StatelessWidget {
         child: Column(
           children: [
             Tooltip(
-              message: '${palette.name}${locked ? ' · Premium' : ''}',
+              message:
+                  '${paletteLabel(context, palette)}${locked ? ' · Premium' : ''}',
               child: InkResponse(
                 key: ValueKey('theme-${palette.id}'),
                 radius: 25,
@@ -258,9 +332,8 @@ class SettingsPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              palette.name,
-              maxLines: 1,
-              softWrap: false,
+              paletteLabel(context, palette),
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(

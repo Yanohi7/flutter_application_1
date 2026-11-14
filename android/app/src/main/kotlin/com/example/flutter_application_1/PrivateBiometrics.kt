@@ -142,7 +142,7 @@ internal class PrivateBiometrics(private val activity: FragmentActivity) {
             authenticating = false
             result.error(
                 "invalidated",
-                "Biometric access has changed. Unlock with your private password or recovery file, then set up biometrics again.",
+                "Biometric access has changed. Unlock with your private password, then set up biometrics again.",
                 null,
             )
         } catch (_: Exception) {

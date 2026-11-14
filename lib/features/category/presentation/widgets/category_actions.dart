@@ -1,5 +1,6 @@
 // Share category edit, move and delete menus between navigation chips and the management tree
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -29,13 +30,13 @@ class CategoryActions {
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit / Move'),
+              title: Text(AppLocalizations.of(context)!.editMove),
               onTap: () => Navigator.pop(sheetContext, _CategoryAction.edit),
             ),
             if (!category.isDefault)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: const Text('Delete'),
+                title: Text(AppLocalizations.of(context)!.delete),
                 onTap: () =>
                     Navigator.pop(sheetContext, _CategoryAction.delete),
               ),

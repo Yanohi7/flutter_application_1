@@ -1,5 +1,6 @@
 // Create or edit a category with name validation, parent selection and unsaved-change protection
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/app_ui.dart';
@@ -70,16 +71,19 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
     final discard = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Discard unsaved changes?'),
-        content: const Text('Your category changes will not be saved.'),
+        scrollable: true,
+        title: Text(AppLocalizations.of(context)!.discardUnsavedChanges),
+        content: Text(
+          AppLocalizations.of(context)!.yourCategoryChangesWillNotBeSaved,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Keep editing'),
+            child: Text(AppLocalizations.of(context)!.keepEditing),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Discard'),
+            child: Text(AppLocalizations.of(context)!.discard),
           ),
         ],
       ),
@@ -141,7 +145,9 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
     if (!saved) {
       setState(() {
         _submitting = false;
-        _saveError = cubit.state.errorMessage ?? 'Failed to save category.';
+        _saveError =
+            cubit.state.errorMessage ??
+            AppLocalizations.of(context)!.failedToSaveCategory;
       });
       return;
     }
@@ -202,7 +208,7 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
           .toList(),
       selectedId: _parentId,
       allowTopLevel: true,
-      title: 'Parent category',
+      title: AppLocalizations.of(context)!.parentCategory,
     );
     if (!mounted || selection == null) return;
     setState(() {
@@ -234,8 +240,8 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
         };
         return AppDialog(
           title: widget.category == null
-              ? 'Create New Category'
-              : 'Edit category',
+              ? AppLocalizations.of(context)!.createNewCategory
+              : AppLocalizations.of(context)!.editCategory,
           onClose: busy ? null : _close,
           child:
               state.status == CategoryStatus.initial ||
@@ -248,7 +254,7 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
               ? OutlinedButton.icon(
                   onPressed: context.read<CategoryCubit>().loadCategories,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Try again'),
+                  label: Text(AppLocalizations.of(context)!.tryAgain),
                 )
               : Form(
                   key: _formKey,
@@ -262,18 +268,18 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
                         enabled: !busy,
                         textCapitalization: TextCapitalization.sentences,
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          hintText: 'Category name',
+                        decoration: InputDecoration(
+                          hintText: AppLocalizations.of(context)!.categoryName,
                         ),
                         validator: (value) =>
                             value == null || value.trim().isEmpty
-                            ? 'Enter the category name.'
+                            ? AppLocalizations.of(context)!.enterTheCategoryName
                             : null,
                         onChanged: (_) => setState(() => _saveError = null),
                         onFieldSubmitted: (_) => _save(),
                       ),
                       const SizedBox(height: 16),
-                      const FieldLabel('Parent category'),
+                      FieldLabel(AppLocalizations.of(context)!.parentCategory),
                       InkWell(
                         onTap: busy || widget.category?.isDefault == true
                             ? null
@@ -285,13 +291,17 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
                             enabled:
                                 !busy && widget.category?.isDefault != true,
                             helperText: widget.category?.isDefault == true
-                                ? 'The default category stays at the top level'
+                                ? AppLocalizations.of(context)!
+                                      .theDefaultCategoryStaysAtTheTopLevel
                                 : null,
+                            helperMaxLines: 4,
                           ),
                           child: Text(
                             _parentId == null
-                                ? 'None (top level)'
-                                : byId[_parentId]?.name ?? 'Choose category',
+                                ? AppLocalizations.of(context)!.noneTopLevel
+                                : byId[_parentId]?.name ??
+                                      AppLocalizations.of(context)!
+                                          .chooseCategory,
                           ),
                         ),
                       ),
@@ -313,11 +323,15 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
                         children: [
                           TextButton(
                             onPressed: busy ? null : _close,
-                            child: const Text('Cancel'),
+                            child: Text(AppLocalizations.of(context)!.cancel),
                           ),
                           FilledButton(
                             onPressed: busy ? null : _save,
-                            child: Text(busy ? 'Saving…' : 'Save category'),
+                            child: Text(
+                              busy
+                                  ? AppLocalizations.of(context)!.saving
+                                  : AppLocalizations.of(context)!.saveCategory,
+                            ),
                           ),
                         ],
                       ),

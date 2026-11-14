@@ -1,4 +1,5 @@
 // Encode structured blocks compatibly and render them inside the note document.
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
 import 'dart:convert';
 import 'dart:math' as math;
@@ -10,48 +11,37 @@ import 'entry_table_viewport.dart';
 const _checklistPrefix = '::entry-checklist ';
 const _listPrefix = '::entry-list ';
 const _tablePrefix = '::entry-table ';
-
 bool _mayHaveStructure(String content) =>
     content.contains('::entry-') ||
     content.contains('|') ||
     content.contains('- [');
-
 bool _hasEncodedBlock(String line) =>
     line.startsWith(_checklistPrefix) ||
     line.startsWith(_listPrefix) ||
     line.startsWith(_tablePrefix);
-
 typedef _Item = ({String text, bool checked});
 typedef _Checklist = ({String title, List<_Item> items});
 typedef _Table = ({String title, List<List<String>> rows});
-
 typedef _PlainList = ({String title, String marker, List<String> items});
 
 class _Extras {
   final lists = <_PlainList>[];
-  final alignments = <Object, int>{};
   final checklists = <_Checklist>[];
   final tables = <_Table>[];
-
   String encode() => [
     for (final checklist in checklists)
       '$_checklistPrefix${jsonEncode({
         'title': checklist.title,
-        'alignment': alignments[checklist.items] ?? 0,
         'items': [
           for (final item in checklist.items) {'text': item.text, 'checked': item.checked},
         ],
       })}',
     for (final table in tables)
-      '$_tablePrefix${jsonEncode({'title': table.title, 'rows': table.rows, 'alignment': alignments[table.rows] ?? 0})}',
+      '$_tablePrefix${jsonEncode({'title': table.title, 'rows': table.rows})}',
     for (final list in lists)
-      '$_listPrefix${jsonEncode({'title': list.title, 'marker': list.marker, 'items': list.items, 'alignment': alignments[list.items] ?? 0})}',
+      '$_listPrefix${jsonEncode({'title': list.title, 'marker': list.marker, 'items': list.items})}',
   ].join('\n');
 }
-
-// Keep older saved entries left aligned and ignore invalid alignment values
-int _alignment(Map<String, dynamic>? data) =>
-    data?['alignment'] is int ? (data!['alignment'] as int).clamp(0, 2) : 0;
 
 Map<String, dynamic>? _decode(String line, String prefix) {
   if (!line.startsWith(prefix)) return null;
@@ -97,9 +87,6 @@ List<String>? _legacyCells(String line) {
               (text: text, checked: checked),
         ],
       ));
-      extras.alignments[extras.checklists.last.items] = _alignment(
-        checklistData,
-      );
       continue;
     }
     final listData = _decode(line, _listPrefix);
@@ -115,7 +102,6 @@ List<String>? _legacyCells(String line) {
         items: items.whereType<String>().toList(),
       );
       extras.lists.add(list);
-      extras.alignments[list.items] = _alignment(listData);
       continue;
     }
     final tableData = _decode(line, _tablePrefix);
@@ -133,11 +119,9 @@ List<String>? _legacyCells(String line) {
       if (rows.isNotEmpty &&
           rows.every((row) => row.length == rows.first.length)) {
         extras.tables.add((title: title, rows: rows));
-        extras.alignments[rows] = _alignment(tableData);
         continue;
       }
     }
-
     // Read tables and checkboxes saved by the previous editor
     final header = _legacyCells(line);
     final separator =
@@ -189,9 +173,14 @@ String entryPlainText(String content) {
 }
 
 class EntryContentBlock {
-  const EntryContentBlock(this.content, {this.structured = false});
+  const EntryContentBlock(
+    this.content, {
+    this.structured = false,
+    this.sourceLine,
+  });
   final String content;
   final bool structured;
+  final int? sourceLine;
 }
 
 /// Preserve the order of text and structured blocks, including older saved entries.
@@ -202,10 +191,21 @@ List<EntryContentBlock> entryContentBlocks(String content) {
   if (!hasEncodedBlocks) {
     final legacy = splitEntryContent(content);
     if (legacy.extras.isEmpty) return [EntryContentBlock(content)];
+    final checklistLines = [
+      for (final (index, line) in lines.indexed)
+        if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) index,
+    ].iterator;
     return [
       EntryContentBlock(legacy.text),
       for (final line in legacy.extras.split('\n'))
-        EntryContentBlock(line, structured: true),
+        EntryContentBlock(
+          line,
+          structured: true,
+          sourceLine:
+              line.startsWith(_checklistPrefix) && checklistLines.moveNext()
+              ? checklistLines.current
+              : null,
+        ),
     ];
   }
   final result = <EntryContentBlock>[];
@@ -215,7 +215,7 @@ List<EntryContentBlock> entryContentBlocks(String content) {
     text.clear();
   }
 
-  for (final line in lines) {
+  for (final (index, line) in lines.indexed) {
     final encoded = _hasEncodedBlock(line)
         ? splitEntryContent(line).extras
         : '';
@@ -223,7 +223,9 @@ List<EntryContentBlock> entryContentBlocks(String content) {
       text.add(line);
     } else {
       flush();
-      result.add(EntryContentBlock(encoded, structured: true));
+      result.add(
+        EntryContentBlock(encoded, structured: true, sourceLine: index),
+      );
     }
   }
   flush();
@@ -234,16 +236,13 @@ typedef _SearchSummary = ({String text, bool hasChecklist});
 final _searchSummaries = <String, _SearchSummary>{};
 var _searchSummaryCharacters = 0;
 const _searchSummaryBudget = 128 * 1024;
-
 bool entryHasChecklist(String content) =>
     (content.contains(_checklistPrefix) ||
         content.contains('- [ ] ') ||
         content.contains('- [x] ')) &&
     _searchSummary(content).hasChecklist;
-
 String entrySearchText(String content) =>
     _mayHaveStructure(content) ? _searchSummary(content).text : content;
-
 _SearchSummary _searchSummary(String content) {
   final cached = _searchSummaries.remove(content);
   if (cached != null) {
@@ -283,9 +282,15 @@ _SearchSummary _searchSummary(String content) {
 }
 
 class EntryDocumentView extends StatelessWidget {
-  const EntryDocumentView({super.key, required this.content});
+  const EntryDocumentView({
+    super.key,
+    required this.content,
+    this.onChecklistChanged,
+    this.checklistEnabled = true,
+  });
   final String content;
-
+  final ValueChanged<String>? onChecklistChanged;
+  final bool checklistEnabled;
   @override
   Widget build(BuildContext context) => SelectionArea(
     child: Column(
@@ -293,7 +298,33 @@ class EntryDocumentView extends StatelessWidget {
       children: [
         for (final block in entryContentBlocks(content))
           if (block.structured)
-            EntryExtras(text: block.content, compact: true)
+            EntryExtras(
+              text: block.content,
+              compact: true,
+              enabled: checklistEnabled,
+              onChecklistChanged:
+                  onChecklistChanged == null || block.sourceLine == null
+                  ? null
+                  : (updated) {
+                      final lines = content.split('\n');
+                      final index = block.sourceLine!;
+                      final previous = lines[index];
+                      if (previous.startsWith('- [')) {
+                        final checked = _readContent(updated)
+                            .extras
+                            .checklists
+                            .single
+                            .items
+                            .single
+                            .checked;
+                        lines[index] =
+                            '- [${checked ? 'x' : ' '}] ${previous.substring(6)}';
+                      } else {
+                        lines[index] = updated;
+                      }
+                      onChecklistChanged!(lines.join('\n'));
+                    },
+            )
           else if (block.content.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -312,19 +343,19 @@ class EntryExtras extends StatefulWidget {
     super.key,
     required this.text,
     this.onChanged,
+    this.onChecklistChanged,
     this.enabled = true,
     this.showToolbar = true,
     this.compact = false,
     this.autofocus = false,
   });
-
   final String text;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onChecklistChanged;
   final bool enabled;
   final bool showToolbar;
   final bool compact;
   final bool autofocus;
-
   @override
   State<EntryExtras> createState() => _EntryExtrasState();
 }
@@ -334,7 +365,6 @@ class _EntryExtrasState extends State<EntryExtras> {
   late _Extras _extras = _readContent(widget.text).extras;
   bool get _editing => widget.onChanged != null;
   bool get _enabled => _editing && widget.enabled;
-
   @override
   void didUpdateWidget(covariant EntryExtras oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -344,7 +374,6 @@ class _EntryExtrasState extends State<EntryExtras> {
   }
 
   void _changed() => widget.onChanged?.call(_extras.encode());
-
   void _update(VoidCallback change) {
     setState(change);
     _changed();
@@ -357,16 +386,21 @@ class _EntryExtrasState extends State<EntryExtras> {
     TextStyle? style,
     double scale = 1,
     bool multiline = false,
-    TextAlign textAlign = TextAlign.left,
   }) {
-    if (!_editing) return Text(value, style: style, textAlign: textAlign);
+    if (!_editing) {
+      return Text(
+        value,
+        style: style,
+        softWrap: true,
+        overflow: TextOverflow.clip,
+      );
+    }
     return TextFormField(
       initialValue: value,
       autofocus: widget.autofocus && _fieldIndex++ == 0,
       enableInteractiveSelection: true,
       contextMenuBuilder: (context, state) =>
           AdaptiveTextSelectionToolbar.editableText(editableTextState: state),
-      textAlign: textAlign,
       maxLines: multiline ? null : 1,
       keyboardType: multiline ? TextInputType.multiline : null,
       enabled: _enabled,
@@ -411,39 +445,12 @@ class _EntryExtrasState extends State<EntryExtras> {
                     title,
                     hint,
                     rename,
-                    textAlign: [
-                      TextAlign.left,
-                      TextAlign.center,
-                      TextAlign.right,
-                    ][_extras.alignments[key] ?? 0],
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
                 if (_editing)
-                  PopupMenuButton<int>(
-                    tooltip: 'Alignment',
-                    enabled: _enabled,
-                    icon: Icon(
-                      [
-                        Icons.format_align_left,
-                        Icons.format_align_center,
-                        Icons.format_align_right,
-                      ][_extras.alignments[key] ?? 0],
-                      size: 18,
-                    ),
-                    onSelected: (value) =>
-                        _update(() => _extras.alignments[key] = value),
-                    itemBuilder: (_) => [
-                      for (var i = 0; i < 3; i++)
-                        PopupMenuItem(
-                          value: i,
-                          child: Text(['Left', 'Center', 'Right'][i]),
-                        ),
-                    ],
-                  ),
-                if (_editing)
                   IconButton(
-                    tooltip: 'Remove',
+                    tooltip: AppLocalizations.of(context)!.remove,
                     icon: const Icon(Icons.close, size: 18),
                     visualDensity: VisualDensity.compact,
                     onPressed: _enabled ? () => _update(remove) : null,
@@ -455,14 +462,13 @@ class _EntryExtrasState extends State<EntryExtras> {
       ],
     ),
   );
-
   Widget _checklist(int index) {
     final checklist = _extras.checklists[index];
     final items = checklist.items;
     return _panel(
       key: items,
       title: checklist.title,
-      hint: 'Checklist title',
+      hint: AppLocalizations.of(context)!.checklistTitle,
       rename: (title) =>
           _extras.checklists[index] = (title: title, items: items),
       remove: () => _extras.checklists.removeAt(index),
@@ -472,17 +478,29 @@ class _EntryExtrasState extends State<EntryExtras> {
             // Recreate remaining fields when removing an earlier item
             key: ValueKey((items.length, item)),
             children: [
-              if (_editing)
+              if (_editing || widget.onChecklistChanged != null)
                 Checkbox(
                   visualDensity: VisualDensity.standard,
                   value: items[item].checked,
-                  onChanged: _enabled
-                      ? (checked) => _update(() {
-                          items[item] = (
-                            text: items[item].text,
-                            checked: checked ?? false,
+                  onChanged:
+                      widget.enabled &&
+                          (_editing || widget.onChecklistChanged != null)
+                      ? (checked) {
+                          final newChecked = checked ?? false;
+                          final previous = items[item];
+                          final changed = (
+                            text: previous.text,
+                            checked: newChecked,
                           );
-                        })
+                          if (widget.onChecklistChanged case final onChanged?) {
+                            items[item] = changed;
+                            final content = _extras.encode();
+                            items[item] = previous;
+                            onChanged(content);
+                          } else {
+                            _update(() => items[item] = changed);
+                          }
+                        }
                       : null,
                 )
               else
@@ -494,14 +512,14 @@ class _EntryExtrasState extends State<EntryExtras> {
                         : Icons.check_box_outline_blank,
                     size: 24,
                     semanticLabel: items[item].checked
-                        ? 'Checked'
-                        : 'Unchecked',
+                        ? AppLocalizations.of(context)!.checked
+                        : AppLocalizations.of(context)!.unchecked,
                   ),
                 ),
               Expanded(
                 child: _field(
                   items[item].text,
-                  'List item',
+                  AppLocalizations.of(context)!.listItem,
                   (text) {
                     items[item] = (text: text, checked: items[item].checked);
                   },
@@ -519,7 +537,7 @@ class _EntryExtrasState extends State<EntryExtras> {
               ),
               if (_editing)
                 IconButton(
-                  tooltip: 'Remove item',
+                  tooltip: AppLocalizations.of(context)!.removeItem,
                   icon: const Icon(Icons.close, size: 16),
                   onPressed: _enabled
                       ? () => _update(() => items.removeAt(item))
@@ -532,7 +550,7 @@ class _EntryExtrasState extends State<EntryExtras> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               icon: const Icon(Icons.add),
-              label: const Text('Add item'),
+              label: Text(AppLocalizations.of(context)!.addItem),
               onPressed: _enabled
                   ? () => _update(() => items.add((text: '', checked: false)))
                   : null,
@@ -550,16 +568,12 @@ class _EntryExtrasState extends State<EntryExtras> {
     return _panel(
       key: rows,
       title: table.title,
-      hint: 'Table title',
+      hint: AppLocalizations.of(context)!.tableTitle,
       rename: (title) => _extras.tables[index] = (title: title, rows: rows),
       remove: () => _extras.tables.removeAt(index),
       children: [
         EntryTableViewport(
-          alignment: [
-            Alignment.centerLeft,
-            Alignment.center,
-            Alignment.centerRight,
-          ][_extras.alignments[rows] ?? 0],
+          alignment: Alignment.centerLeft,
           builder: (scale) {
             final colors = theme.colorScheme;
             final bodyStyle = theme.textTheme.bodyMedium!.copyWith(
@@ -574,25 +588,28 @@ class _EntryExtrasState extends State<EntryExtras> {
               colors.surface,
             );
             final widths = <int, TableColumnWidth>{};
+            final textScaler = MediaQuery.textScalerOf(context);
             final painter = TextPainter(
               textDirection: Directionality.of(context),
-              textScaler: MediaQuery.textScalerOf(context),
+              textScaler: textScaler,
+              locale: Localizations.maybeLocaleOf(context),
             );
+            final padding = 18 * scale;
+            final scaledFontSize = textScaler.scale(bodyStyle.fontSize!);
+            final maxTextWidth = math.max(360 * scale, scaledFontSize * 14);
             for (var column = 0; column < columns; column++) {
-              var width = 76 * scale;
+              var width = math.max(76 * scale, scaledFontSize * 3 + padding);
               for (var row = 0; row < rows.length; row++) {
                 painter.text = TextSpan(
                   text: rows[row][column],
                   style: row == 0 ? headerStyle : bodyStyle,
                 );
-                // Very long cells wrap inside a wide column instead of clipping.
-                painter.layout(maxWidth: 1600 * scale);
-                width = math.max(width, painter.width + 22 * scale);
+                painter.layout(maxWidth: maxTextWidth);
+                width = math.max(width, painter.width + padding + 4);
               }
               widths[column] = FixedColumnWidth(width.ceilToDouble());
             }
             painter.dispose();
-
             return Table(
               columnWidths: widths,
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -611,14 +628,16 @@ class _EntryExtrasState extends State<EntryExtras> {
                             horizontal: 9 * scale,
                             vertical: 6 * scale,
                           ),
-                          child: _field(
-                            rows[row][column],
-                            '',
-                            (value) =>
-                                setState(() => rows[row][column] = value),
-                            scale: scale,
-                            multiline: true,
-                            style: row == 0 ? headerStyle : bodyStyle,
+                          child: ClipRect(
+                            child: _field(
+                              rows[row][column],
+                              '',
+                              (value) =>
+                                  setState(() => rows[row][column] = value),
+                              scale: scale,
+                              multiline: true,
+                              style: row == 0 ? headerStyle : bodyStyle,
+                            ),
                           ),
                         ),
                     ],
@@ -635,7 +654,7 @@ class _EntryExtrasState extends State<EntryExtras> {
               runSpacing: 8,
               children: [
                 _stepper(
-                  'Rows',
+                  AppLocalizations.of(context)!.rows,
                   rows.length,
                   onRemove: _enabled && rows.length > 1
                       ? () => _removeTableEdge(rows, column: false)
@@ -647,7 +666,7 @@ class _EntryExtrasState extends State<EntryExtras> {
                       : null,
                 ),
                 _stepper(
-                  'Columns',
+                  AppLocalizations.of(context)!.columns,
                   columns,
                   onRemove: _enabled && columns > 1
                       ? () => _removeTableEdge(rows, column: true)
@@ -668,17 +687,16 @@ class _EntryExtrasState extends State<EntryExtras> {
   }
 
   // Markers are derived from the item position so removals always renumber the list
-  static const _markers = {
-    'bullet': '• Bullets',
-    'dash': '– Dashes',
-    'square': '▪ Squares',
-    'number': '1. Numbers',
+  Map<String, String> get _markers => {
+    'bullet': '• ${AppLocalizations.of(context)!.bullets}',
+    'dash': '– ${AppLocalizations.of(context)!.dashes}',
+    'square': '▪ ${AppLocalizations.of(context)!.squares}',
+    'number': '1. ${AppLocalizations.of(context)!.numbers}',
     'lower': 'a. Letters',
-    'upper': 'A. Letters',
-    'roman': 'I. Roman numerals',
-    'none': 'No markers',
+    'upper': 'A. ${AppLocalizations.of(context)!.letters}',
+    'roman': 'I. ${AppLocalizations.of(context)!.romanNumerals}',
+    'none': AppLocalizations.of(context)!.noMarkers,
   };
-
   String _marker(String style, int index) {
     if (style == 'number') return '${index + 1}.';
     if (style == 'lower' || style == 'upper') {
@@ -725,7 +743,7 @@ class _EntryExtrasState extends State<EntryExtras> {
     return _panel(
       key: items,
       title: list.title,
-      hint: 'List title',
+      hint: AppLocalizations.of(context)!.listTitle,
       rename: (title) => _extras.lists[index] = (
         title: title,
         marker: list.marker,
@@ -738,7 +756,7 @@ class _EntryExtrasState extends State<EntryExtras> {
             alignment: Alignment.centerLeft,
             child: PopupMenuButton<String>(
               enabled: _enabled,
-              tooltip: 'List markers',
+              tooltip: AppLocalizations.of(context)!.listMarkers,
               onSelected: (marker) => _update(
                 () => _extras.lists[index] = (
                   title: list.title,
@@ -773,14 +791,14 @@ class _EntryExtrasState extends State<EntryExtras> {
                 Expanded(
                   child: _field(
                     items[item],
-                    'List item',
+                    AppLocalizations.of(context)!.listItem,
                     (value) => items[item] = value,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
                 if (_editing)
                   IconButton(
-                    tooltip: 'Remove item',
+                    tooltip: AppLocalizations.of(context)!.removeItem,
                     icon: const Icon(Icons.close, size: 16),
                     onPressed: _enabled
                         ? () => _update(() => items.removeAt(item))
@@ -794,7 +812,7 @@ class _EntryExtrasState extends State<EntryExtras> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add item'),
+              label: Text(AppLocalizations.of(context)!.addItem),
               onPressed: _enabled ? () => _update(() => items.add('')) : null,
             ),
           ),
@@ -808,31 +826,40 @@ class _EntryExtrasState extends State<EntryExtras> {
     required VoidCallback? onRemove,
     required VoidCallback? onAdd,
   }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 4,
       children: [
         Text(label, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(width: 4),
-        IconButton(
-          tooltip: 'Remove last ${label == 'Rows' ? 'row' : 'column'}',
-          visualDensity: VisualDensity.compact,
-          style: IconButton.styleFrom(
-            minimumSize: const Size(32, 32),
-            padding: EdgeInsets.zero,
-          ),
-          onPressed: onRemove,
-          icon: const Icon(Icons.remove, size: 18),
-        ),
-        Text('$count', style: Theme.of(context).textTheme.labelLarge),
-        IconButton(
-          tooltip: 'Add ${label == 'Rows' ? 'row' : 'column'}',
-          visualDensity: VisualDensity.compact,
-          style: IconButton.styleFrom(
-            minimumSize: const Size(32, 32),
-            padding: EdgeInsets.zero,
-          ),
-          onPressed: onAdd,
-          icon: const Icon(Icons.add, size: 18),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: label == AppLocalizations.of(context)!.rows
+                  ? AppLocalizations.of(context)!.removeLastRow
+                  : AppLocalizations.of(context)!.removeLastColumn,
+              visualDensity: VisualDensity.compact,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(32, 32),
+                padding: EdgeInsets.zero,
+              ),
+              onPressed: onRemove,
+              icon: const Icon(Icons.remove, size: 18),
+            ),
+            Text('$count', style: Theme.of(context).textTheme.labelLarge),
+            IconButton(
+              tooltip: label == AppLocalizations.of(context)!.rows
+                  ? AppLocalizations.of(context)!.addRow
+                  : AppLocalizations.of(context)!.addColumn,
+              visualDensity: VisualDensity.compact,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(32, 32),
+                padding: EdgeInsets.zero,
+              ),
+              onPressed: onAdd,
+              icon: const Icon(Icons.add, size: 18),
+            ),
+          ],
         ),
       ],
     );
@@ -850,16 +877,21 @@ class _EntryExtrasState extends State<EntryExtras> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Remove last $target?'),
-          content: Text('The text in this $target will be deleted.'),
+          scrollable: true,
+          title: Text(
+            target == 'row'
+                ? AppLocalizations.of(context)!.removeLastRowQuestion
+                : AppLocalizations.of(context)!.removeLastColumnQuestion,
+          ),
+          content: Text(AppLocalizations.of(context)!.tableRemovalMessage),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text(AppLocalizations.of(context)!.cancel),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Remove'),
+              child: Text(AppLocalizations.of(context)!.remove),
             ),
           ],
         ),
@@ -903,7 +935,7 @@ class _EntryExtrasState extends State<EntryExtras> {
           Wrap(
             children: [
               IconButton(
-                tooltip: 'Add checklist',
+                tooltip: AppLocalizations.of(context)!.addChecklist,
                 icon: const Icon(Icons.checklist),
                 onPressed: _enabled
                     ? () => _update(() {
@@ -915,7 +947,7 @@ class _EntryExtrasState extends State<EntryExtras> {
                     : null,
               ),
               IconButton(
-                tooltip: 'Add list',
+                tooltip: AppLocalizations.of(context)!.addList,
                 icon: const Icon(Icons.format_list_bulleted),
                 onPressed: _enabled
                     ? () => _update(
@@ -928,7 +960,7 @@ class _EntryExtrasState extends State<EntryExtras> {
                     : null,
               ),
               IconButton(
-                tooltip: 'Add table',
+                tooltip: AppLocalizations.of(context)!.addTable,
                 icon: const Icon(Icons.table_chart_outlined),
                 onPressed: _enabled
                     ? () => _update(() {

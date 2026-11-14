@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -80,7 +82,10 @@ class _ProfilePhotoCropState extends State<_ProfilePhotoCrop> {
         final cropped = await picture.toImage(side, side);
         try {
           final png = await cropped.toByteData(format: ui.ImageByteFormat.png);
-          if (png == null) throw StateError('Could not render the photo.');
+          if (png == null)
+            throw StateError(
+              AppLocalizations.of(context)!.couldNotRenderThePhoto,
+            );
           if (mounted) {
             Navigator.pop(
               context,
@@ -117,7 +122,7 @@ class _ProfilePhotoCropState extends State<_ProfilePhotoCrop> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Adjust profile photo',
+                      AppLocalizations.of(context)!.adjustProfilePhoto,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
@@ -155,8 +160,9 @@ class _ProfilePhotoCropState extends State<_ProfilePhotoCrop> {
                       },
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Drag to reposition. Pinch or use the zoom slider.',
+                    Text(
+                      AppLocalizations.of(context)!
+                          .dragToRepositionPinchOrUseTheZoomSlider,
                     ),
                     Row(
                       children: [
@@ -177,7 +183,10 @@ class _ProfilePhotoCropState extends State<_ProfilePhotoCrop> {
                       ],
                     ),
                     if (_failed)
-                      const Text('Could not crop this photo. Try again.'),
+                      Text(
+                        AppLocalizations.of(context)!
+                            .couldNotCropThisPhotoTryAgain,
+                      ),
                   ],
                 ),
               ),
@@ -189,11 +198,11 @@ class _ProfilePhotoCropState extends State<_ProfilePhotoCrop> {
                 children: [
                   TextButton(
                     onPressed: _saving ? null : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+                    child: Text(AppLocalizations.of(context)!.cancel),
                   ),
                   FilledButton(
                     onPressed: _saving ? null : _apply,
-                    child: const Text('Use photo'),
+                    child: Text(AppLocalizations.of(context)!.usePhoto),
                   ),
                 ],
               ),

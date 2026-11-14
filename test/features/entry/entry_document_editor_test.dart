@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +18,10 @@ void main() {
       final content = EntryDocumentController(text: 'BeforeAfter');
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           theme: AppTheme.light,
           home: Scaffold(
             body: SingleChildScrollView(
@@ -50,6 +55,10 @@ void main() {
       final saved = content.text;
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           home: Scaffold(
             body: SingleChildScrollView(
               child: EntryDocumentView(content: saved),
@@ -79,6 +88,10 @@ void main() {
     final content = EntryDocumentController();
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
+
         theme: AppTheme.light,
         home: Scaffold(
           body: SingleChildScrollView(
@@ -155,6 +168,10 @@ void main() {
       final content = EntryDocumentController(text: 'Copy this text');
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           home: Scaffold(
             body: Form(
               child: EntryDocumentEditor(

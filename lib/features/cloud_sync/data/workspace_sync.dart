@@ -11,6 +11,15 @@ import 'workspace_merge.dart';
 
 enum WorkspaceSyncResult { empty, current, uploaded, downloaded }
 
+typedef PrivateBackupPassword = Future<String?> Function({
+  required bool local,
+  required int copy,
+});
+
+class PrivateMergeCanceled implements Exception {
+  const PrivateMergeCanceled();
+}
+
 class WorkspaceConflict extends DriveSyncException {
   const WorkspaceConflict(this.localDigest, this.heads)
     : super(
@@ -31,6 +40,7 @@ class WorkspaceSync {
   Future<({WorkspaceSyncResult result, String? digest})> sync({
     String? previousDigest,
     bool localKnownUnchanged = false,
+    void Function(String)? onConfirmed,
     required Future<void> Function(Future<void> Function()) applyDownload,
   }) async {
     final heads = await _drive.heads();
@@ -52,6 +62,7 @@ class WorkspaceSync {
     final (bytes: body, :digest) = await _prepareUpload(local.content, key);
     if (multipleVersions) throw WorkspaceConflict(digest, heads);
     if (remote?.digest == digest) {
+      onConfirmed?.call(local.content);
       return (result: WorkspaceSyncResult.current, digest: digest);
     }
     if (remote == null || remote.digest == previousDigest) {
@@ -65,6 +76,7 @@ class WorkspaceSync {
         digest: digest,
         parents: heads.map((head) => head.id).toList(),
       );
+      onConfirmed?.call(local.content);
       return (result: WorkspaceSyncResult.uploaded, digest: digest);
     }
     if (digest != previousDigest && !local.isEmpty) {
@@ -74,25 +86,38 @@ class WorkspaceSync {
       remote,
       'The Google Drive backup did not pass verification.',
     );
+    final configuredEnvelope =
+        await PrivateContentStore.readSyncPasswordEnvelope();
+    if (hasPrivate &&
+        envelope != null &&
+        configuredEnvelope != null &&
+        !_samePrivateKey(configuredEnvelope, envelope)) {
+      throw WorkspaceConflict(digest, heads);
+    }
     await applyDownload(() async {
-      if (hasPrivate) {
-        if (envelope == null) {
-          throw const DriveSyncException(
-            'The backup is missing its protected private information key.',
-          );
-        }
-        await PrivateContentStore.acceptSyncPasswordEnvelope(envelope);
+      if (hasPrivate && envelope == null) {
+        throw const DriveSyncException(
+          'The backup is missing its protected private information key.',
+        );
       }
       await _local.restore(
         content,
         storageRoot: await _storageRoot(),
         replaceExpected: local.content,
+        afterRestore: hasPrivate
+            ? (_) => PrivateContentStore.acceptSyncPasswordEnvelope(envelope!)
+            : null,
       );
     });
     return (result: WorkspaceSyncResult.downloaded, digest: remote.digest);
   }
 
-  Future<String> keepBoth(WorkspaceConflict conflict) async {
+  Future<String> keepBoth(
+    WorkspaceConflict conflict, {
+    void Function(String)? onConfirmed,
+    PrivateBackupPassword? requestPassword,
+    void Function()? beforeApply,
+  }) async {
     final local = await _local.exportForSync();
     final localEnvelope = await _keyFor(local.hasPrivate);
     final localDigest = (await _prepareUpload(
@@ -111,23 +136,56 @@ class WorkspaceSync {
         'A version changed. Run Sync now to review the latest copies.',
       );
     }
-    var envelope = localEnvelope;
+    final configuredEnvelope =
+        localEnvelope ?? await PrivateContentStore.readSyncPasswordEnvelope();
+    var envelope = configuredEnvelope;
+    var targetCopy = 0;
     final seen = {localDigest};
     final remoteCopies = <String>[];
-    for (final head in heads) {
-      if (!seen.add(head.digest)) continue;
-      final (content: content, envelope: remoteEnvelope, :hasPrivate) =
-          await _download(head, 'A Drive copy did not pass verification.');
-      if (hasPrivate) {
-        if (remoteEnvelope == null ||
-            (envelope != null && !_samePrivateKey(envelope, remoteEnvelope))) {
-          throw const DriveSyncException(
-            'The private information on these copies uses different keys. Both copies are still available.',
-          );
+    SecretKeyData? targetKey;
+    try {
+      for (final (index, head) in heads.indexed) {
+        if (!seen.add(head.digest)) continue;
+        final (content: content, envelope: remoteEnvelope, :hasPrivate) =
+            await _download(head, 'A Drive copy did not pass verification.');
+        if (hasPrivate) {
+          if (remoteEnvelope == null) {
+            throw const DriveSyncException(
+              'The backup is missing its protected private information key.',
+            );
+          }
+          if (envelope == null) {
+            envelope = remoteEnvelope;
+            targetCopy = index + 1;
+          }
+          final target = envelope;
+          if (!_samePrivateKey(target, remoteEnvelope)) {
+            targetKey ??= await _requestKey(
+              target,
+              requestPassword,
+              local: configuredEnvelope != null,
+              copy: targetCopy,
+            );
+            final source = await _requestKey(
+              remoteEnvelope,
+              requestPassword,
+              local: false,
+              copy: index + 1,
+            );
+            try {
+              remoteCopies.add(
+                await _reencryptPrivateEntries(content, source, targetKey),
+              );
+            } finally {
+              source.destroy();
+            }
+            continue;
+          }
         }
-        envelope ??= remoteEnvelope;
+        remoteCopies.add(content);
       }
-      remoteCopies.add(content);
+    } finally {
+      targetKey?.destroy();
     }
 
     final size = remoteCopies.fold(
@@ -137,8 +195,20 @@ class WorkspaceSync {
     final merged = size >= _backgroundThreshold
         ? await compute(_mergeCopies, (local.content, remoteCopies))
         : mergeWorkspaceCopies(local.content, remoteCopies);
-    if (localEnvelope == null && envelope != null) {
-      await PrivateContentStore.acceptSyncPasswordEnvelope(envelope);
+    beforeApply?.call();
+    final currentHeads = await _drive.heads();
+    if (currentHeads.length != heads.length ||
+        !currentHeads.every(
+          (head) => heads.any(
+            (copy) => head.id == copy.id && head.digest == copy.digest,
+          ),
+        ) ||
+        (await _local.exportForSync()).content != local.content ||
+        await PrivateContentStore.readSyncPasswordEnvelope() !=
+            configuredEnvelope) {
+      throw const DriveSyncException(
+        'A version changed. Run Sync now to review the latest copies.',
+      );
     }
     final (bytes: body, :digest) = await _prepareUpload(merged, envelope);
     await _drive.publish(
@@ -150,8 +220,54 @@ class WorkspaceSync {
       merged,
       storageRoot: await _storageRoot(),
       replaceExpected: local.content,
+      afterRestore: configuredEnvelope == null && envelope != null
+          ? (_) => PrivateContentStore.acceptSyncPasswordEnvelope(envelope!)
+          : null,
     );
+    onConfirmed?.call(merged);
     return digest;
+  }
+
+  Future<SecretKeyData> _requestKey(
+    String envelope,
+    PrivateBackupPassword? requestPassword, {
+    required bool local,
+    required int copy,
+  }) async {
+    if (requestPassword == null) {
+      throw const DriveSyncException(
+        'The private information on these copies uses different passwords.',
+      );
+    }
+    final password = await requestPassword(local: local, copy: copy);
+    if (password == null) throw const PrivateMergeCanceled();
+    try {
+      return await PrivateContentStore.unlockPasswordEnvelope(
+        envelope,
+        password,
+      );
+    } on FormatException {
+      throw const DriveSyncException('Incorrect private password.');
+    }
+  }
+
+  Future<String> _reencryptPrivateEntries(
+    String content,
+    SecretKey source,
+    SecretKey target,
+  ) async {
+    final workspace = jsonDecode(content) as Map<String, dynamic>;
+    for (final entry
+        in (workspace['entries'] as List).cast<Map<String, dynamic>>()) {
+      final encrypted = entry['private_content'] as String;
+      if (encrypted.isEmpty) continue;
+      final plaintext = await PrivateContentStore.decrypt(encrypted, source);
+      entry['private_content'] = await PrivateContentStore.encrypt(
+        plaintext,
+        target,
+      );
+    }
+    return jsonEncode(workspace);
   }
 
   bool _samePrivateKey(String first, String second) {

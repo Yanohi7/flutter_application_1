@@ -15,6 +15,7 @@ class EntryAudioInput {
     const audioTypes = XTypeGroup(
       label: 'Audio files',
       mimeTypes: ['audio/*'],
+      uniformTypeIdentifiers: ['public.audio'],
       extensions: ['m4a', 'mp3', 'wav', 'aac', 'ogg', 'flac', 'opus'],
     );
 
@@ -34,8 +35,19 @@ class EntryAudioInput {
   }
 
   Future<XFile?> stopRecording() async {
-    final recordingPath = await recorder.stop();
+    final String? recordingPath;
+    try {
+      recordingPath = await recorder.stop();
+    } catch (_) {
+      try {
+        await recorder.cancel();
+      } catch (_) {
+        // Preserve the original recording error.
+      }
+      rethrow;
+    }
     if (recordingPath == null) return null;
+    if (await File(recordingPath).length() == 0) return null;
 
     return XFile(recordingPath);
   }

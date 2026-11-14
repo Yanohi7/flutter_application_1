@@ -41,6 +41,12 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock private information in EntryNote.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Allow EntryNote to record audio for your entries.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos for your entries and workspace background.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos to attach to your entries.</string>
 	<key>GADApplicationIdentifier</key>
 	<string>$(ENTRIES_ADMOB_APP_ID)</string>
 	<key>SKAdNetworkItems</key>

@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 class GoogleSignInButton extends StatelessWidget {
@@ -7,28 +8,19 @@ class GoogleSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final variant = Theme.of(context).brightness == Brightness.dark
-        ? 'dark'
-        : 'light';
-    return Semantics(
-      button: true,
-      enabled: onPressed != null,
-      label: 'Sign in with Google',
-      child: Opacity(
-        opacity: onPressed == null ? .55 : 1,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const StadiumBorder(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Image.asset(
-              'assets/images/google-sign-in-$variant.png',
-              height: 40,
-              excludeFromSemantics: true,
-            ),
-          ),
-        ),
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       ),
+      icon: Image.asset(
+        'assets/images/google-mark.png',
+        width: 18,
+        height: 18,
+        excludeFromSemantics: true,
+      ),
+      label: Text(AppLocalizations.of(context)!.signInWithGoogle),
     );
   }
 }

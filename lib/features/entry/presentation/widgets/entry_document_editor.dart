@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -62,27 +64,44 @@ class EntryTitleField extends StatelessWidget {
     required this.controller,
     required this.enabled,
     this.style,
+    this.focusNode,
   });
   final TextEditingController controller;
   final bool enabled;
   final TextStyle? style;
+  final FocusNode? focusNode;
 
   @override
-  Widget build(BuildContext context) => TextFormField(
-    key: const Key('entry-title'),
-    controller: controller,
-    enabled: enabled,
-    enableInteractiveSelection: true,
-    contextMenuBuilder: (context, state) =>
-        AdaptiveTextSelectionToolbar.editableText(editableTextState: state),
-    textCapitalization: TextCapitalization.sentences,
-    textInputAction: TextInputAction.next,
-    style: style ?? Theme.of(context).textTheme.titleLarge,
-    decoration: _plainDecoration.copyWith(hintText: 'Entry title'),
-    validator: (value) =>
-        value == null || value.trim().isEmpty ? 'Enter an entry title' : null,
-    autovalidateMode: AutovalidateMode.onUserInteraction,
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final titleStyle =
+        style ??
+        theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
+    return TextFormField(
+      key: const Key('entry-title'),
+      controller: controller,
+      focusNode: focusNode,
+      enabled: enabled,
+      enableInteractiveSelection: true,
+      contextMenuBuilder: (context, state) =>
+          AdaptiveTextSelectionToolbar.editableText(editableTextState: state),
+      textCapitalization: TextCapitalization.sentences,
+      textInputAction: TextInputAction.next,
+      style: titleStyle,
+      minLines: 1,
+      maxLines: 3,
+      decoration: _plainDecoration.copyWith(
+        hintText: AppLocalizations.of(context)!.entryTitle,
+        hintStyle: titleStyle?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      validator: (value) => value == null || value.trim().isEmpty
+          ? AppLocalizations.of(context)!.enterAnEntryTitle
+          : null,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+    );
+  }
 }
 
 class _DocumentSegment {
@@ -109,6 +128,8 @@ class EntryDocumentEditor extends StatefulWidget {
   const EntryDocumentEditor({
     super.key,
     this.title,
+    this.titleFieldKey,
+    this.titleFocus,
     required this.content,
     required this.privatePanel,
     required this.hasPrivateContent,
@@ -116,6 +137,8 @@ class EntryDocumentEditor extends StatefulWidget {
     this.enabled = true,
   });
   final TextEditingController? title;
+  final GlobalKey? titleFieldKey;
+  final FocusNode? titleFocus;
   final EntryDocumentController content;
   final Widget privatePanel;
   final bool hasPrivateContent;
@@ -315,8 +338,10 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: EntryTitleField(
+                key: widget.titleFieldKey,
                 controller: title,
                 enabled: widget.enabled,
+                focusNode: widget.titleFocus,
               ),
             ),
           Padding(
@@ -350,9 +375,10 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
                             style: theme.textTheme.bodyLarge,
                             decoration: _plainDecoration.copyWith(
                               hintText: _segments.length == 1
-                                  ? 'Entry text…'
+                                  ? AppLocalizations.of(context)!.entryText
                                   : segment == _segments.last
-                                  ? 'Continue writing…'
+                                  ? AppLocalizations.of(context)!
+                                        .continueWriting
                                   : null,
                             ),
                           )
@@ -396,8 +422,11 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
                               size: 18,
                             ),
                             const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text('Private information · Locked'),
+                            Expanded(
+                              child: Text(
+                                AppLocalizations.of(context)!
+                                    .privateInformationLocked,
+                              ),
                             ),
                             const Icon(Icons.expand_more, size: 18),
                           ],
@@ -414,25 +443,25 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
               border: Border(top: BorderSide(color: colors.outlineVariant)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            child: Row(
+            child: Wrap(
               children: [
                 IconButton(
-                  tooltip: 'Add checklist',
+                  tooltip: AppLocalizations.of(context)!.addChecklist,
                   onPressed: widget.enabled ? () => _insert('checklist') : null,
                   icon: const Icon(Icons.checklist),
                 ),
                 IconButton(
-                  tooltip: 'Add list',
+                  tooltip: AppLocalizations.of(context)!.addList,
                   onPressed: widget.enabled ? () => _insert('list') : null,
                   icon: const Icon(Icons.format_list_bulleted),
                 ),
                 IconButton(
-                  tooltip: 'Add table',
+                  tooltip: AppLocalizations.of(context)!.addTable,
                   onPressed: widget.enabled ? () => _insert('table') : null,
                   icon: const Icon(Icons.table_chart_outlined),
                 ),
                 IconButton(
-                  tooltip: 'Private information',
+                  tooltip: AppLocalizations.of(context)!.privateInformation,
                   isSelected: _privateOpen,
                   onPressed: widget.enabled ? _togglePrivate : null,
                   icon: const Icon(Icons.lock_outline),

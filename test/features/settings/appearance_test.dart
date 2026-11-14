@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_application_1/core/presentation/app_preferences.dart';
@@ -60,6 +61,10 @@ void main() {
       addTearDown(preferences.dispose);
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           theme: AppTheme.light,
           home: SettingsPage(preferences: preferences),
         ),
@@ -95,6 +100,10 @@ void main() {
       addTearDown(preferences.dispose);
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+
           theme: AppTheme.dark,
           home: SettingsPage(preferences: preferences),
         ),

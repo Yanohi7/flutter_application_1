@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/core/database/database_helper.dart';
 import 'package:flutter_application_1/core/security/private_content_store.dart';
@@ -44,6 +45,28 @@ Future<void> main() => app.startEntries(
         ),
         privateContent: privateContent,
       );
+    } else {
+      final profiles = await db.query(
+        'profiles',
+        columns: ['id', 'avatar_image', 'avatar_original_path'],
+      );
+      for (final profile in profiles) {
+        final avatar = profile['avatar_image'];
+        if (profile['avatar_original_path'] != null || avatar is! Uint8List)
+          continue;
+        final hash = await Sha256().hash(avatar);
+        if (hash.bytes
+                .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+                .join() ==
+            '8e171e1b56661e34c503df6e4974872fec0be7b5079a143530f74082c46c233e') {
+          await db.update(
+            'profiles',
+            {'avatar_image': null},
+            where: 'id = ?',
+            whereArgs: [profile['id']],
+          );
+        }
+      }
     }
     return helper;
   },

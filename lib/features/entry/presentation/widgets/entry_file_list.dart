@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_video_thumbnail_plus/flutter_video_thumbnail_plus.dart';
@@ -33,7 +34,8 @@ class _EntryFileListState extends State<EntryFileList> {
             content: Text(
               error is FormatException
                   ? error.message
-                  : 'Could not open this file. It may no longer be available.',
+                  : AppLocalizations.of(context)!
+                        .couldNotOpenThisFileItMayNoLongerBeAvailable,
             ),
           ),
         );
@@ -66,14 +68,14 @@ class _EntryFileListState extends State<EntryFileList> {
               ),
               subtitle: Text(
                 file.fileSize == null
-                    ? 'Open with another app'
+                    ? AppLocalizations.of(context)!.openWithAnotherApp
                     : '${(file.fileSize! / 1024 / 1024).toStringAsFixed(2)} MB · Open with another app',
               ),
               onTap: widget.isEnabled && !_isOpening ? () => _open(file) : null,
               trailing: widget.onRemove == null
                   ? const Icon(Icons.open_in_new, size: 18)
                   : IconButton(
-                      tooltip: 'Remove file',
+                      tooltip: AppLocalizations.of(context)!.removeFile,
                       icon: const Icon(Icons.close, size: 20),
                       onPressed: widget.isEnabled && !_isOpening
                           ? () => widget.onRemove!(file)

@@ -136,6 +136,13 @@ class PhotoWallpaper extends StatefulWidget {
   final double x, y, zoom;
   final double opacity;
 
+  static ImageProvider<Object> imageProvider(String path) => ResizeImage(
+    FileImage(File(path)),
+    width: 2560,
+    height: 2560,
+    policy: ResizeImagePolicy.fit,
+  );
+
   @override
   State<PhotoWallpaper> createState() => _PhotoWallpaperState();
 }
@@ -143,8 +150,7 @@ class PhotoWallpaper extends StatefulWidget {
 class _PhotoWallpaperState extends State<PhotoWallpaper> {
   ImageStream? _stream;
   ImageStreamListener? _listener;
-  ImageProvider? _image;
-  Size? _size;
+  ImageInfo? _frame;
 
   @override
   void didChangeDependencies() {
@@ -160,46 +166,47 @@ class _PhotoWallpaperState extends State<PhotoWallpaper> {
 
   void _resolve() {
     if (_listener != null) _stream?.removeListener(_listener!);
-    _size = null;
     // A wallpaper only needs screen-sized pixels, even when a camera photo is large.
-    _image = ResizeImage(
-      FileImage(File(widget.path)),
-      width: 2560,
-      height: 2560,
-      policy: ResizeImagePolicy.fit,
+    final image = PhotoWallpaper.imageProvider(widget.path);
+    _stream = image.resolve(createLocalImageConfiguration(context));
+    _listener = ImageStreamListener(
+      (info, _) {
+        if (!mounted) {
+          info.dispose();
+          return;
+        }
+        final old = _frame;
+        setState(() => _frame = info);
+        old?.dispose();
+      },
+      onError: (Object _, StackTrace? _) {
+        final old = _frame;
+        if (mounted) setState(() => _frame = null);
+        old?.dispose();
+      },
     );
-    _stream = _image!.resolve(createLocalImageConfiguration(context));
-    _listener = ImageStreamListener((info, _) {
-      if (mounted)
-        setState(
-          () => _size = Size(
-            info.image.width.toDouble(),
-            info.image.height.toDouble(),
-          ),
-        );
-      info.dispose();
-    }, onError: (Object _, StackTrace? _) {});
     _stream!.addListener(_listener!);
   }
 
   @override
   void dispose() {
     if (_listener != null) _stream?.removeListener(_listener!);
+    _frame?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final size = _size;
-      if (size == null) return const SizedBox.expand();
+      final image = _frame?.image;
+      if (image == null) return const SizedBox.expand();
       final scale =
           math.max(
-            constraints.maxWidth / size.width,
-            constraints.maxHeight / size.height,
+            constraints.maxWidth / image.width,
+            constraints.maxHeight / image.height,
           ) *
           widget.zoom;
-      final width = size.width * scale, height = size.height * scale;
+      final width = image.width * scale, height = image.height * scale;
       return ClipRect(
         child: Stack(
           children: [
@@ -208,12 +215,10 @@ class _PhotoWallpaperState extends State<PhotoWallpaper> {
               top: (constraints.maxHeight - height) * (widget.y + 1) / 2,
               width: width,
               height: height,
-              child: Image(
-                image: _image!,
+              child: RawImage(
+                image: image,
                 fit: BoxFit.fill,
                 opacity: AlwaysStoppedAnimation(widget.opacity),
-                excludeFromSemantics: true,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
           ],

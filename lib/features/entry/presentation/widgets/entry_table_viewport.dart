@@ -1,5 +1,6 @@
 // Provide horizontal navigation and independent display zoom for each entry table
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -32,49 +33,51 @@ class _EntryTableViewportState extends State<EntryTableViewport> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.max,
-          children: [
-            const Spacer(),
-            IconButton(
-              tooltip: 'Zoom out',
-              visualDensity: VisualDensity.compact,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(32, 32),
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              icon: const Icon(Icons.remove, size: 18),
-              onPressed: _zoomPercent > 25
-                  ? () => setState(() => _zoomPercent -= 5)
-                  : null,
-            ),
-            Tooltip(
-              message: 'Reset zoom',
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(48, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                tooltip: AppLocalizations.of(context)!.zoomOut,
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(32, 32),
+                  padding: EdgeInsets.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                onPressed: () => setState(() => _zoomPercent = 100),
-                child: Text('$_zoomPercent%'),
+                icon: const Icon(Icons.remove, size: 18),
+                onPressed: _zoomPercent > 25
+                    ? () => setState(() => _zoomPercent -= 5)
+                    : null,
               ),
-            ),
-            IconButton(
-              tooltip: 'Zoom in',
-              visualDensity: VisualDensity.compact,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(32, 32),
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              Tooltip(
+                message: AppLocalizations.of(context)!.resetZoom,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => setState(() => _zoomPercent = 100),
+                  child: Text('$_zoomPercent%'),
+                ),
               ),
-              icon: const Icon(Icons.add, size: 18),
-              onPressed: _zoomPercent < 150
-                  ? () => setState(() => _zoomPercent += 5)
-                  : null,
-            ),
-          ],
+              IconButton(
+                tooltip: AppLocalizations.of(context)!.zoomIn,
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(32, 32),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                onPressed: _zoomPercent < 150
+                    ? () => setState(() => _zoomPercent += 5)
+                    : null,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         // A scrollbar gives mouse users a drag target without intercepting cell selection.

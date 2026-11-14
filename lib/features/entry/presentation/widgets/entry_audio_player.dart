@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -94,13 +96,13 @@ class EntryAudioPlayer extends StatelessWidget {
           children: [
             IconButton.filledTonal(
               tooltip: active && playback.isPlaying
-                  ? 'Pause audio'
-                  : 'Play audio',
+                  ? AppLocalizations.of(context)!.pauseAudio
+                  : AppLocalizations.of(context)!.playAudio,
               onPressed: enabled
                   ? () => _run(
                       context,
                       playback.toggle(attachment),
-                      'Could not play this audio file.',
+                      AppLocalizations.of(context)!.couldNotPlayThisAudioFile,
                     )
                   : null,
               icon: Icon(
@@ -125,19 +127,22 @@ class EntryAudioPlayer extends StatelessWidget {
                   if (active)
                     _PlaybackTime(playback)
                   else
-                    Text('Tap to listen', style: theme.textTheme.bodySmall),
+                    Text(
+                      AppLocalizations.of(context)!.tapToListen,
+                      style: theme.textTheme.bodySmall,
+                    ),
                 ],
               ),
             ),
             if (onRename != null)
               IconButton(
-                tooltip: 'Rename audio',
+                tooltip: AppLocalizations.of(context)!.renameAudio,
                 onPressed: enabled ? () => onRename!(attachment) : null,
                 icon: const Icon(Icons.edit_outlined, size: 18),
               ),
             if (onRemove != null)
               IconButton(
-                tooltip: 'Remove audio',
+                tooltip: AppLocalizations.of(context)!.removeAudio,
                 onPressed: enabled ? () => onRemove!(attachment) : null,
                 icon: const Icon(Icons.close, size: 20),
               ),
@@ -178,13 +183,14 @@ class EntryMiniPlayer extends StatelessWidget {
                   children: [
                     IconButton.filledTonal(
                       tooltip: playback.isPlaying
-                          ? 'Pause audio'
-                          : 'Play audio',
+                          ? AppLocalizations.of(context)!.pauseAudio
+                          : AppLocalizations.of(context)!.playAudio,
                       onPressed: enabled
                           ? () => _run(
                               context,
                               playback.toggle(track),
-                              'Could not play this audio file.',
+                              AppLocalizations.of(context)!
+                                  .couldNotPlayThisAudioFile,
                             )
                           : null,
                       icon: Icon(
@@ -210,12 +216,13 @@ class EntryMiniPlayer extends StatelessWidget {
                     ),
                     _PlaybackSpeed(playback, enabled: enabled),
                     IconButton(
-                      tooltip: 'Close player',
+                      tooltip: AppLocalizations.of(context)!.closePlayer,
                       onPressed: enabled
                           ? () => _run(
                               context,
                               playback.stop(),
-                              'Could not stop playback.',
+                              AppLocalizations.of(context)!
+                                  .couldNotStopPlayback,
                             )
                           : null,
                       icon: const Icon(Icons.close, size: 20),
@@ -263,13 +270,13 @@ class _PlaybackSpeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<double>(
-    tooltip: 'Playback speed',
+    tooltip: AppLocalizations.of(context)!.playbackSpeed,
     enabled: enabled,
     initialValue: playback.speed,
     onSelected: (speed) => _run(
       context,
       playback.setSpeed(speed),
-      'Could not change playback speed for this audio file.',
+      AppLocalizations.of(context)!.couldNotChangePlaybackSpeedForThisAudioFile,
     ),
     itemBuilder: (_) => [
       for (final speed in EntryPlayback.speeds)
@@ -318,7 +325,7 @@ class _PlaybackSliderState extends State<_PlaybackSlider> {
             await _run(
               context,
               widget.playback.seek(Duration(milliseconds: value.round())),
-              'Could not seek this audio file.',
+              AppLocalizations.of(context)!.couldNotSeekThisAudioFile,
             );
             if (mounted) setState(() => _dragPosition = null);
           },

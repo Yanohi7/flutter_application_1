@@ -42,6 +42,7 @@ void main() {
     final original = await ProfileStore.writeOriginal(sourceFiles, photo);
     await (await source.database).update('profiles', {
       'avatar_original_path': original,
+      'avatar_image': photo,
     });
     final snapshot = await LocalWorkspaceSnapshot(source).export();
     expect(snapshot, isNot(contains('source-files')));

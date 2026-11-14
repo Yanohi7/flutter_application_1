@@ -77,7 +77,7 @@ class LocalWorkspaceSnapshot {
     final profileRow = profile.singleOrNull;
     final categories = await txn.query(
       'categories',
-      columns: _categoryColumns,
+      columns: [..._categoryColumns, 'sync_id'],
       where: 'user_id = ?',
       whereArgs: [userId],
       orderBy: 'id',
@@ -85,7 +85,7 @@ class LocalWorkspaceSnapshot {
     final entries = await txn.rawQuery(
       '''
         SELECT ${_entryColumns.map((column) => 'entries.$column').join(', ')}
-        FROM entries JOIN categories
+        , entries.sync_id FROM entries JOIN categories
           ON entries.category_id = categories.id WHERE categories.user_id = ?
         ORDER BY entries.id
       ''',
@@ -94,7 +94,7 @@ class LocalWorkspaceSnapshot {
     final attachments = await txn.rawQuery(
       '''
         SELECT media_attachments.id, entry_id, file_type, file_name,
-          display_name, local_path, mime_type, media_attachments.created_at
+          display_name, local_path, mime_type, media_attachments.created_at, media_attachments.sync_id
         FROM media_attachments JOIN entries
           ON media_attachments.entry_id = entries.id
         JOIN categories ON entries.category_id = categories.id
@@ -104,11 +104,36 @@ class LocalWorkspaceSnapshot {
       ''',
       [userId],
     );
+    final categoryIds = await _portableIds(txn, 'categories', categories);
+    final entryIds = await _portableIds(txn, 'entries', entries);
+    final attachmentIds = await _portableIds(
+      txn,
+      'media_attachments',
+      attachments,
+    );
     final input = (
       profile: profileRow,
-      categories: categories,
-      entries: entries,
-      attachments: attachments,
+      categories: _portableRows(
+        categories,
+        _categoryColumns,
+        categoryIds,
+        'parent_id',
+        categoryIds,
+      ),
+      entries: _portableRows(
+        entries,
+        _entryColumns,
+        entryIds,
+        'category_id',
+        categoryIds,
+      ),
+      attachments: _portableRows(
+        attachments,
+        [..._attachmentColumns, 'local_path'],
+        attachmentIds,
+        'entry_id',
+        entryIds,
+      ),
     );
     final hasMedia =
         attachments.isNotEmpty ||
@@ -132,6 +157,60 @@ class LocalWorkspaceSnapshot {
           (profileRow?['display_name'] ?? 'Guest') == 'Guest',
     );
   }
+
+  Future<Map<int, int>> _portableIds(
+    Transaction txn,
+    String table,
+    List<Map<String, Object?>> rows,
+  ) async {
+    final ids = <int, int>{
+      for (final row in rows)
+        if (row['sync_id'] case final int id) row['id'] as int: id,
+    };
+    final taken = ids.values.toSet();
+    var next = taken.fold(0, (max, id) => id > max ? id : max) + 1;
+    final batch = txn.batch();
+    var updated = false;
+    for (final row in rows) {
+      final local = row['id'] as int;
+      if (ids.containsKey(local)) continue;
+      var portable = local;
+      if (!taken.add(portable)) {
+        while (!taken.add(next)) {
+          next++;
+        }
+        portable = next++;
+      }
+      ids[local] = portable;
+      batch.update(
+        table,
+        {'sync_id': portable},
+        where: 'id = ?',
+        whereArgs: [local],
+      );
+      updated = true;
+    }
+    if (updated) await batch.commit(noResult: true);
+    return ids;
+  }
+
+  List<Map<String, Object?>> _portableRows(
+    List<Map<String, Object?>> rows,
+    List<String> columns,
+    Map<int, int> ids,
+    String reference,
+    Map<int, int> references,
+  ) => [
+    for (final row in rows)
+      {
+        for (final column in columns)
+          column: switch (column) {
+            'id' => ids[row['id']],
+            _ when column == reference => references[row[reference]],
+            _ => row[column],
+          },
+      },
+  ]..sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
 
   static Future<String> _encode(
     ({
@@ -174,6 +253,7 @@ class LocalWorkspaceSnapshot {
     String snapshot, {
     required Directory storageRoot,
     String? replaceExpected,
+    Future<void> Function(Transaction)? afterRestore,
   }) async {
     final data = snapshot.length >= 256 * 1024
         ? await compute(_decode, snapshot)
@@ -205,43 +285,97 @@ class LocalWorkspaceSnapshot {
     String? oldAvatar;
     try {
       await db.transaction((txn) async {
-        final hasContent = await txn.rawQuery('''
-          SELECT EXISTS(SELECT 1 FROM entries)
-            OR EXISTS(SELECT 1 FROM categories WHERE is_default = 0)
-            OR EXISTS(SELECT 1 FROM profiles
-                       WHERE avatar_image IS NOT NULL)
-            AS has_content
-        ''');
+        final userId = await _userId(txn);
+        final hasContent = await txn.rawQuery(
+          '''
+          SELECT EXISTS(
+            SELECT 1 FROM entries JOIN categories ON entries.category_id = categories.id
+            WHERE categories.user_id = ?
+          ) OR EXISTS(
+            SELECT 1 FROM categories WHERE user_id = ? AND is_default = 0
+          ) OR EXISTS(
+            SELECT 1 FROM profiles WHERE user_id = ? AND avatar_image IS NOT NULL
+          ) AS has_content
+        ''',
+          [userId, userId, userId],
+        );
         if (replaceExpected != null) {
           if ((await _snapshot(txn)).content != replaceExpected) {
             throw StateError('Entries changed during sync. Try again.');
           }
-          oldAttachments = await txn.query(
-            'media_attachments',
-            columns: ['local_path', 'file_type'],
+          oldAttachments = await txn.rawQuery(
+            '''
+            SELECT media_attachments.local_path, media_attachments.file_type
+            FROM media_attachments
+            JOIN entries ON media_attachments.entry_id = entries.id
+            JOIN categories ON entries.category_id = categories.id
+            WHERE categories.user_id = ?
+          ''',
+            [userId],
           );
           final profiles = await txn.query(
             'profiles',
             columns: ['avatar_original_path'],
+            where: 'user_id = ?',
+            whereArgs: [userId],
             limit: 1,
           );
           oldAvatar = profiles.singleOrNull?['avatar_original_path'] as String?;
-          await txn.delete('entries');
+          await txn.rawDelete(
+            '''
+            DELETE FROM media_attachments WHERE entry_id IN (
+              SELECT entries.id FROM entries JOIN categories ON entries.category_id = categories.id
+              WHERE categories.user_id = ?
+            )
+          ''',
+            [userId],
+          );
+          await txn.rawDelete(
+            '''
+            DELETE FROM entries WHERE category_id IN (
+              SELECT id FROM categories WHERE user_id = ?
+            )
+          ''',
+            [userId],
+          );
         } else if (hasContent.single['has_content'] == 1) {
           throw StateError('This workspace already contains local data.');
         }
-        final userId = await _userId(txn);
         await txn.delete(
           'categories',
           where: 'user_id = ?',
           whereArgs: [userId],
         );
         await txn.execute('PRAGMA defer_foreign_keys = ON;');
+        final sequence = await txn.query(
+          'sqlite_sequence',
+          columns: ['seq'],
+          where: 'name = ?',
+          whereArgs: ['categories'],
+        );
+        var nextCategory = (sequence.singleOrNull?['seq'] as int? ?? 0) + 1;
+        final categoryIds = {
+          for (final row in categories) row['id']: nextCategory++,
+        };
         for (final row in categories) {
-          await txn.insert('categories', {...row, 'user_id': userId});
+          await txn.insert('categories', {
+            ...row,
+            'id': categoryIds[row['id']],
+            'sync_id': row['id'],
+            'parent_id': row['parent_id'] == null
+                ? null
+                : categoryIds[row['parent_id']]!,
+            'user_id': userId,
+          });
         }
+        final entryIds = <Object?, int>{};
         for (final row in entries) {
-          await txn.insert('entries', row);
+          final portable = row.remove('id');
+          entryIds[portable] = await txn.insert('entries', {
+            ...row,
+            'sync_id': portable,
+            'category_id': categoryIds[row['category_id']]!,
+          });
         }
         for (final row in attachments) {
           final type = row['file_type'];
@@ -262,8 +396,11 @@ class LocalWorkspaceSnapshot {
           staged.add(folder);
           final file = File(p.join(folder.path, 'attachment$safeExtension'));
           await file.writeAsBytes(bytes, flush: true);
+          final portable = row.remove('id');
           await txn.insert('media_attachments', {
             ...row,
+            'sync_id': portable,
+            'entry_id': entryIds[row['entry_id']]!,
             'local_path': file.path,
             'file_size': bytes.length,
           });
@@ -296,6 +433,7 @@ class LocalWorkspaceSnapshot {
             ...values,
           });
         }
+        await afterRestore?.call(txn);
       });
     } catch (_) {
       for (final folder in staged) {
@@ -318,15 +456,80 @@ class LocalWorkspaceSnapshot {
 
   static Object? _decode(String snapshot) => jsonDecode(snapshot);
 
+  Future<List<Map<String, Object?>>> removeTransferredEntries(
+    String expected,
+    Set<int> transferred, {
+    required bool removeCategories,
+  }) async {
+    final db = await _helper.database;
+    return db.transaction((txn) async {
+      final user = await _userId(txn);
+      final current = await _snapshot(txn);
+      if (current.content != expected) {
+        throw StateError(
+          'The guest workspace changed during transfer. Both copies are safe.',
+        );
+      }
+      final oldFiles = <Map<String, Object?>>[];
+      final entries = await txn.rawQuery(
+        '''
+        SELECT entries.id, entries.sync_id, entries.is_deleted
+        FROM entries JOIN categories ON entries.category_id = categories.id
+        WHERE categories.user_id = ? AND entries.private_content = ''
+      ''',
+        [user],
+      );
+      final deletions = txn.batch();
+      var hasDeletions = false;
+      for (final entry in entries) {
+        if (!transferred.contains(entry['sync_id']) &&
+            !(removeCategories && entry['is_deleted'] == 1)) {
+          continue;
+        }
+        oldFiles.addAll(
+          await txn.query(
+            'media_attachments',
+            columns: ['local_path', 'file_type'],
+            where: 'entry_id = ?',
+            whereArgs: [entry['id']],
+          ),
+        );
+        deletions.delete('entries', where: 'id = ?', whereArgs: [entry['id']]);
+        hasDeletions = true;
+      }
+      if (hasDeletions) await deletions.commit(noResult: true);
+      if (removeCategories && !current.hasPrivate) {
+        await txn.rawDelete(
+          '''
+          DELETE FROM categories
+          WHERE user_id = ? AND is_default = 0 AND NOT EXISTS (
+            SELECT 1 FROM entries JOIN categories ON entries.category_id = categories.id
+            WHERE categories.user_id = ?
+          )
+        ''',
+          [user, user],
+        );
+      }
+      await txn.delete(
+        'guest_transfer',
+        where: 'guest_id = ?',
+        whereArgs: [user],
+      );
+      return oldFiles;
+    });
+  }
+
   static Future<Uint8List> _decodeMedia(String value) async =>
       value.length >= 256 * 1024
       ? compute(base64Decode, value)
       : base64Decode(value);
 
   Future<int> _userId(DatabaseExecutor db) async =>
+      _helper.activeUserId ??
       (await db.query(
             'users',
             columns: ['id'],
+            where: 'google_account_id IS NULL',
             orderBy: 'id',
             limit: 1,
           )).single['id']

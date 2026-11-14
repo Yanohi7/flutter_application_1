@@ -1,3 +1,5 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+
 import '../../../category/presentation/pages/category_create_page.dart';
 // Share edit, move, duplicate and delete flows between card menus and the entry reading page
 
@@ -69,10 +71,27 @@ class EntryActions {
           child: ListView(
             shrinkWrap: true,
             children: [
-              if (showEdit) item(EntryAction.edit, 'Edit', Icons.edit_outlined),
-              item(EntryAction.move, 'Move', Icons.drive_file_move_outlined),
-              item(EntryAction.duplicate, 'Duplicate', Icons.copy_outlined),
-              item(EntryAction.delete, 'Delete', Icons.delete_outline),
+              if (showEdit)
+                item(
+                  EntryAction.edit,
+                  AppLocalizations.of(context)!.edit,
+                  Icons.edit_outlined,
+                ),
+              item(
+                EntryAction.move,
+                AppLocalizations.of(context)!.move,
+                Icons.drive_file_move_outlined,
+              ),
+              item(
+                EntryAction.duplicate,
+                AppLocalizations.of(context)!.duplicate,
+                Icons.copy_outlined,
+              ),
+              item(
+                EntryAction.delete,
+                AppLocalizations.of(context)!.delete,
+                Icons.delete_outline,
+              ),
             ],
           ),
         );
@@ -97,7 +116,10 @@ class EntryActions {
 
         if (!context.mounted) return false;
         if (categories.state.status != CategoryStatus.success) {
-          _message(context, 'Categories are not ready. Please try again.');
+          _message(
+            context,
+            AppLocalizations.of(context)!.categoriesAreNotReadyPleaseTryAgain,
+          );
           return false;
         }
 
@@ -107,7 +129,7 @@ class EntryActions {
           context: context,
           categories: categories.state.categories,
           selectedId: entry.categoryId,
-          title: 'Move entry',
+          title: AppLocalizations.of(context)!.moveEntry,
         );
 
         final target = selection?.category;
@@ -119,7 +141,7 @@ class EntryActions {
 
         final moved = await cubit.saveEntry(
           original: entry,
-          title: entry.title ?? 'Untitled',
+          title: entry.title ?? AppLocalizations.of(context)!.untitled,
           content: entry.content,
           privateContent: entry.privateContent,
           isPinned: entry.isPinned,
@@ -128,14 +150,15 @@ class EntryActions {
         );
 
         if (context.mounted && moved != null) {
-          _message(context, 'Entry moved');
+          _message(context, AppLocalizations.of(context)!.entryMoved);
         }
         return false;
 
       case EntryAction.duplicate:
         // Create a new text entry with a new ID and new timestamps
         final copied = await cubit.saveEntry(
-          title: '${entry.title ?? 'Untitled'} (copy)',
+          title:
+              '${entry.title ?? AppLocalizations.of(context)!.untitled} (copy)',
           content: entry.content,
           privateContent: entry.privateContent,
           isPinned: entry.isPinned,
@@ -144,7 +167,7 @@ class EntryActions {
         );
 
         if (context.mounted && copied != null) {
-          _message(context, 'Entry duplicated');
+          _message(context, AppLocalizations.of(context)!.entryDuplicated);
         }
         return false;
 
@@ -152,14 +175,15 @@ class EntryActions {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('Delete the entry?'),
+            scrollable: true,
+            title: Text(AppLocalizations.of(context)!.deleteTheEntry),
             content: Text(
-              '“${entry.title ?? 'Untitled'}” and its attachments will be permanently deleted.',
+              '“${entry.title ?? AppLocalizations.of(context)!.untitled}” and its attachments will be permanently deleted.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+                child: Text(AppLocalizations.of(context)!.cancel),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
@@ -167,7 +191,7 @@ class EntryActions {
                   foregroundColor: Theme.of(dialogContext).colorScheme.onError,
                 ),
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Delete'),
+                child: Text(AppLocalizations.of(context)!.delete),
               ),
             ],
           ),

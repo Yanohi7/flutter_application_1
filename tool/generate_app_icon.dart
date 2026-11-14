@@ -28,61 +28,45 @@ img.Image _draw({
 }) {
   const size = 1024;
   final canvas = img.Image(width: size, height: size, numChannels: 4);
-  if (background) {
-    for (final pixel in canvas) {
-      final blend = (pixel.x + pixel.y) / (2 * (size - 1));
-      final alpha = rounded
-          ? _coverage(pixel.x, pixel.y, 48, 48, 928, 928, 204)
-          : 1.0;
+  const navy = (19, 30, 46);
+  const paper = (245, 248, 250);
+  for (final pixel in canvas) {
+    final x = pixel.x;
+    final y = pixel.y;
+    final outer = _coverage(x, y, 298, 246, 428, 532, 80);
+    final inner = _coverage(x, y, 348, 296, 328, 432, 34);
+    final ink = outer * (1 - inner);
+    if (background) {
+      final alpha = rounded ? _coverage(x, y, 48, 48, 928, 928, 204) : 1.0;
       pixel.setRgba(
-        38 - 17 * blend,
-        62 - 31 * blend,
-        83 - 31 * blend,
+        navy.$1 + (paper.$1 - navy.$1) * ink,
+        navy.$2 + (paper.$2 - navy.$2) * ink,
+        navy.$3 + (paper.$3 - navy.$3) * ink,
         255 * alpha,
       );
-    }
-  }
-  if (!monochrome) {
-    img.fillRect(
-      canvas,
-      x1: 313,
-      y1: 277,
-      x2: 744,
-      y2: 776,
-      radius: 67,
-      color: img.ColorRgb8(114, 196, 169),
-    );
-  }
-  img.fillRect(
-    canvas,
-    x1: 270,
-    y1: 224,
-    x2: 701,
-    y2: 723,
-    radius: 65,
-    color: monochrome
-        ? img.ColorRgb8(255, 255, 255)
-        : img.ColorRgb8(214, 245, 232),
-  );
-  for (final (y, right) in [(347, 618), (450, 618), (553, 530)]) {
-    if (monochrome) {
-      for (var py = y; py < y + 32; py++) {
-        for (var px = 350; px < right; px++) {
-          final cut = _coverage(px, py, 350, y, right - 350, 32, 16);
-          canvas.setPixelRgba(px, py, 255, 255, 255, 255 * (1 - cut));
-        }
-      }
-    } else {
-      img.fillRect(
-        canvas,
-        x1: 350,
-        y1: y,
-        x2: right - 1,
-        y2: y + 31,
-        radius: 16,
-        color: img.ColorRgb8(25, 56, 70),
+    } else if (ink > 0) {
+      pixel.setRgba(
+        monochrome ? 255 : paper.$1,
+        monochrome ? 255 : paper.$2,
+        monochrome ? 255 : paper.$3,
+        255 * ink,
       );
     }
+  }
+  for (final (y, width) in [(400, 204), (492, 204), (584, 126)]) {
+    img.fillRect(
+      canvas,
+      x1: 410,
+      y1: y,
+      x2: 409 + width,
+      y2: y + 37,
+      radius: 19,
+      color: monochrome
+          ? img.ColorRgb8(255, 255, 255)
+          : y == 584
+          ? img.ColorRgb8(114, 222, 192)
+          : img.ColorRgb8(paper.$1, paper.$2, paper.$3),
+    );
   }
   return canvas;
 }

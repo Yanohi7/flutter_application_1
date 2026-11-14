@@ -9,6 +9,9 @@ import 'package:flutter_application_1/features/category/domain/entities/entry_ca
 import 'package:flutter_application_1/features/category/domain/repositories/categories_repository.dart';
 import 'package:flutter_application_1/features/onboarding/domain/repositories/onboarding_repository.dart';
 
+import 'package:flutter_application_1/core/presentation/app_preferences.dart';
+import 'package:flutter_application_1/features/settings/presentation/pages/background_preview_page.dart';
+
 import 'support/test_entries_repository.dart';
 
 void main() {
@@ -40,6 +43,71 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('The create menu follows all supported device languages', (
+    tester,
+  ) async {
+    addTearDown(tester.binding.platformDispatcher.clearLocalesTestValue);
+    for (final (code, add, entry, category) in [
+      ('en', 'New', 'New entry', 'New category'),
+      ('uk', 'Створити', 'Новий запис', 'Нова категорія'),
+      ('es', 'Crear', 'Nueva entrada', 'Nueva categoría'),
+      ('de', 'Neu', 'Neuer Eintrag', 'Neue Kategorie'),
+      ('pl', 'Nowy', 'Nowy wpis', 'Nowa kategoria'),
+    ]) {
+      tester.binding.platformDispatcher.localesTestValue = [Locale(code)];
+      await openApp(tester, TestEntriesRepository());
+      await tester.tap(find.byTooltip(add));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, entry), findsOneWidget);
+      expect(find.widgetWithText(ListTile, category), findsOneWidget);
+      final sheet = tester.element(find.widgetWithText(ListTile, entry));
+      Navigator.of(sheet).pop();
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('Background preview stays open until changes finish saving', (
+    tester,
+  ) async {
+    await openApp(tester, TestEntriesRepository());
+    final saving = Completer<void>();
+    final context = tester.element(find.byTooltip('New'));
+    unawaited(
+      Navigator.of(context).push<PhotoComposition>(
+        MaterialPageRoute(
+          builder: (_) => BackgroundPreviewPage.opacity(
+            preferences: appPreferences,
+            onApply: (_) => saving.future,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final apply = find.widgetWithText(FilledButton, 'Apply opacity');
+    await tester.scrollUntilVisible(
+      apply,
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byType(BackgroundPreviewPage),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(apply);
+    await tester.pumpAndSettle();
+    expect(find.byType(BackgroundPreviewPage), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Saving…'))
+          .onPressed,
+      isNull,
+    );
+    saving.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(BackgroundPreviewPage), findsNothing);
+  });
+
   Future<Finder> revealSave(WidgetTester tester) async {
     await tester.pumpAndSettle();
     final save = find.widgetWithText(FilledButton, 'Save');
@@ -67,7 +135,18 @@ void main() {
     await openEditor(tester);
     await tapSave(tester);
     await tester.pumpAndSettle();
-    expect(find.text('Enter an entry title'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.text('Enter an entry title'),
+      ),
+      findsOneWidget,
+    );
+    final title = find.byKey(const Key('entry-title'));
+    final field = tester.widget<EditableText>(
+      find.descendant(of: title, matching: find.byType(EditableText)),
+    );
+    expect(field.focusNode.hasFocus, isTrue);
     expect(repo.entries, isEmpty);
     await tester.enterText(
       find.byKey(const Key('entry-title')),
@@ -95,14 +174,14 @@ void main() {
     expect(find.byKey(const Key('entry-content')), findsNothing);
     expect(find.byKey(const Key('entry-title')), findsNothing);
     expect(find.text('Updated text'), findsOneWidget);
-    for (final label in ['Gallery', 'Add audio', 'Add files']) {
-      final button = tester.widget<OutlinedButton>(
-        find.widgetWithText(OutlinedButton, label),
-      );
-      expect(button.onPressed, isNotNull);
+    for (final label in ['Gallery', 'Record', 'Add audio', 'Add files']) {
+      expect(find.text(label), findsNothing);
     }
     await tester.tap(find.byTooltip('Exit reading mode'));
     await tester.pumpAndSettle();
+    for (final label in ['Gallery', 'Record', 'Add audio', 'Add files']) {
+      expect(find.widgetWithText(OutlinedButton, label), findsOneWidget);
+    }
     await tester.enterText(
       find.byKey(const Key('entry-content')),
       'Edited again',

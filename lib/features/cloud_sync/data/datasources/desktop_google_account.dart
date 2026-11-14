@@ -29,7 +29,10 @@ class DesktopGoogleAccount {
   String? _refreshToken;
   AccessToken? _accessToken;
 
-  Future<WorkspaceGoogleAccount> signIn() async {
+  Future<WorkspaceGoogleAccount> signIn({
+    String? expectedId,
+    String? expectedEmail,
+  }) async {
     final verifier = _randomValue();
     final state = _randomValue();
     final challenge = _base64Url(
@@ -48,7 +51,10 @@ class DesktopGoogleAccount {
           'response_type': 'code',
           'scope': _scopes.join(' '),
           'access_type': 'offline',
-          'prompt': 'consent select_account',
+          'prompt': expectedEmail == null
+              ? 'consent select_account'
+              : 'consent',
+          'login_hint': ?expectedEmail,
           'code_challenge_method': 'S256',
           'code_challenge': challenge,
           'state': state,
@@ -123,7 +129,12 @@ class DesktopGoogleAccount {
       );
     }
     final user = await _userInfo(access);
-    await _storage.write(key: _storageKey, value: refresh);
+    if (expectedId != null && user.id != expectedId) {
+      throw const DriveSyncException(
+        'Choose the Google account for this workspace.',
+      );
+    }
+    await _storage.write(key: _accountKey(user.id), value: refresh);
     _refreshToken = refresh;
     _accessToken = AccessToken(
       'Bearer',
@@ -133,16 +144,31 @@ class DesktopGoogleAccount {
     return account = user;
   }
 
-  Future<WorkspaceGoogleAccount?> restore() async {
-    final refresh = await _storage.read(key: _storageKey);
+  String _accountKey(String id) => '${_storageKey}_$id';
+
+  Future<WorkspaceGoogleAccount?> restore({String? expectedId}) async {
+    if (account != null && account!.id == expectedId) return account;
+    final key = expectedId == null ? _storageKey : _accountKey(expectedId);
+    final refresh =
+        await _storage.read(key: key) ??
+        (key == _storageKey ? null : await _storage.read(key: _storageKey));
     if (refresh == null) return null;
+    account = null;
+    _accessToken = null;
     _refreshToken = refresh;
     try {
       final headers = await authorizationHeaders();
-      return account = await _userInfo(headers['Authorization']!.substring(7));
+      final user = await _userInfo(headers['Authorization']!.substring(7));
+      if (expectedId != null && user.id != expectedId) return null;
+      await _storage.write(key: _accountKey(user.id), value: refresh);
+      return account = user;
     } on AccessDeniedException {
-      await signOut();
       return null;
+    } finally {
+      if (account == null) {
+        _accessToken = null;
+        _refreshToken = null;
+      }
     }
   }
 
@@ -188,6 +214,9 @@ class DesktopGoogleAccount {
   }
 
   Future<void> signOut() async {
+    if (account case final active?) {
+      await _storage.delete(key: _accountKey(active.id));
+    }
     await _storage.delete(key: _storageKey);
     _accessToken = null;
     _refreshToken = null;

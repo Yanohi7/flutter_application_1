@@ -1,5 +1,6 @@
 // Display a compact entry preview, category path and quick actions without writing storage directly
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -88,7 +89,7 @@ class EntryCard extends StatelessWidget {
                     child: Text(
                       entry.title?.isNotEmpty == true
                           ? entry.title!
-                          : 'Untitled',
+                          : AppLocalizations.of(context)!.untitled,
                       maxLines: large ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -97,13 +98,20 @@ class EntryCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  action('Entry actions', Icons.more_horiz, muted, onActions),
+                  action(
+                    AppLocalizations.of(context)!.entryActions,
+                    Icons.more_horiz,
+                    muted,
+                    onActions,
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
               Expanded(
                 child: Text(
-                  content.isEmpty ? 'No text yet' : content,
+                  content.isEmpty
+                      ? AppLocalizations.of(context)!.noTextYet
+                      : content,
                   maxLines: compact
                       ? 1
                       : large
@@ -119,14 +127,14 @@ class EntryCard extends StatelessWidget {
                   onTap: () => showDialog<void>(
                     context: context,
                     builder: (dialogContext) => AlertDialog(
-                      title: const Text('Category path'),
+                      title: Text(AppLocalizations.of(context)!.categoryPath),
                       content: SingleChildScrollView(
                         child: SelectableText(location),
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(dialogContext),
-                          child: const Text('Close'),
+                          child: Text(AppLocalizations.of(context)!.close),
                         ),
                       ],
                     ),
@@ -159,10 +167,14 @@ class EntryCard extends StatelessWidget {
                       .toSet();
                   final indicators = [
                     if (kinds.contains('document') || kinds.contains('video'))
-                      (Icons.attach_file, 'Files'),
-                    if (kinds.contains('audio')) (Icons.mic_none, 'Audio'),
+                      (Icons.attach_file, AppLocalizations.of(context)!.files),
+                    if (kinds.contains('audio'))
+                      (Icons.mic_none, AppLocalizations.of(context)!.audio),
                     if (kinds.contains('photo'))
-                      (Icons.image_outlined, 'Images'),
+                      (
+                        Icons.image_outlined,
+                        AppLocalizations.of(context)!.images,
+                      ),
                   ];
                   final dateWidth =
                       width -
@@ -213,15 +225,17 @@ class EntryCard extends StatelessWidget {
                       ),
                       action(
                         entry.isFavorite
-                            ? 'Remove from favorites'
-                            : 'Add to favorites',
+                            ? AppLocalizations.of(context)!.removeFromFavorites
+                            : AppLocalizations.of(context)!.addToFavorites,
                         entry.isFavorite ? Icons.star : Icons.star_border,
                         entry.isFavorite ? AppColors.favorite : muted,
                         onFavorite,
                         width: actionWidth,
                       ),
                       action(
-                        entry.isPinned ? 'Unpin' : 'Pin',
+                        entry.isPinned
+                            ? AppLocalizations.of(context)!.unpin
+                            : AppLocalizations.of(context)!.pin,
                         entry.isPinned
                             ? Icons.push_pin
                             : Icons.push_pin_outlined,

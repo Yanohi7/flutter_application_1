@@ -1,3 +1,4 @@
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/app_preferences.dart';
@@ -25,7 +26,8 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
         content: Text(
           error is FormatException
               ? error.message
-              : 'Could not save your background. Please try again.',
+              : AppLocalizations.of(context)!
+                    .couldNotSaveYourBackgroundPleaseTryAgain,
         ),
       ),
     );
@@ -50,28 +52,29 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
           ? preferences.backgroundPath
           : (imported = await BackgroundStorage.pick());
       if (path == null || !mounted) return;
-      final composition = await Navigator.push<PhotoComposition>(
+      final old = preferences.storedBackgroundPath;
+      await Navigator.push<PhotoComposition>(
         context,
         MaterialPageRoute(
           builder: (_) => BackgroundPreviewPage(
             path: path,
             preferences: preferences,
             isExisting: existing,
+            onApply: (composition) async {
+              await preferences.applyPhoto(
+                path,
+                composition.x,
+                composition.y,
+                composition.zoom,
+                composition.fade,
+                composition.opacity,
+              );
+              committed = true;
+            },
           ),
         ),
       );
-      if (composition == null || !mounted) return;
-      final old = preferences.storedBackgroundPath;
-      await preferences.applyPhoto(
-        path,
-        composition.x,
-        composition.y,
-        composition.zoom,
-        composition.fade,
-        composition.opacity,
-      );
-      committed = true;
-      if (old != path) await BackgroundStorage.remove(old);
+      if (committed && old != path) await BackgroundStorage.remove(old);
     } catch (error) {
       _error(error);
     } finally {
@@ -86,8 +89,9 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
     if (_working || widget.preferences.isSaving) return;
     final confirmed = await confirmPhotoRemoval(
       context,
-      title: 'Remove background photo?',
-      message: 'Your current color theme will become the background again.',
+      title: AppLocalizations.of(context)!.removeBackgroundPhoto,
+      message: AppLocalizations.of(context)!
+          .yourCurrentColorThemeWillBecomeTheBackgroundAgain,
     );
     if (!confirmed || !mounted) return;
     setState(() => _working = true);
@@ -107,15 +111,15 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
     if (_working || preferences.isSaving) return;
     setState(() => _working = true);
     try {
-      final result = await Navigator.of(context).push<PhotoComposition>(
+      await Navigator.of(context).push<PhotoComposition>(
         MaterialPageRoute(
-          builder: (_) =>
-              BackgroundPreviewPage.opacity(preferences: preferences),
+          builder: (_) => BackgroundPreviewPage.opacity(
+            preferences: preferences,
+            onApply: (composition) =>
+                preferences.setSurfaceOpacity(composition.opacity),
+          ),
         ),
       );
-      if (mounted && result != null) {
-        await preferences.setSurfaceOpacity(result.opacity);
-      }
     } catch (error) {
       _error(error);
     } finally {
@@ -132,12 +136,14 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Photo background',
+          AppLocalizations.of(context)!.photoBackground,
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Make it yours with a photo. Preview the crop and adjust readability before applying.',
+        Text(
+          AppLocalizations.of(
+            context,
+          )!.makeItYoursWithAPhotoPreviewTheCropAndAdjustReadabilityBeforeApplying,
         ),
         const SizedBox(height: 12),
         Card(
@@ -170,10 +176,10 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
                   ),
                   label: Text(
                     _working
-                        ? 'Please wait…'
+                        ? AppLocalizations.of(context)!.pleaseWait
                         : path == null
-                        ? 'Add background photo'
-                        : 'Change photo',
+                        ? AppLocalizations.of(context)!.addBackgroundPhoto
+                        : AppLocalizations.of(context)!.changePhoto,
                   ),
                 ),
                 if (path != null) ...[
@@ -181,11 +187,14 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
                   OutlinedButton.icon(
                     onPressed: busy ? null : () => _choose(existing: true),
                     icon: const Icon(Icons.crop),
-                    label: const Text('Adjust photo'),
+                    label: Text(AppLocalizations.of(context)!.adjustPhoto),
                   ),
                   TextButton(
                     onPressed: busy ? null : _remove,
-                    child: const Text('Remove photo · use theme background'),
+                    child: Text(
+                      AppLocalizations.of(context)!
+                          .removePhotoUseThemeBackground,
+                    ),
                   ),
                 ],
               ],
@@ -197,7 +206,8 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
           onPressed: busy ? null : _previewOpacity,
           icon: const Icon(Icons.tune),
           label: Text(
-            'Interface opacity · ${(preferences.surfaceOpacity * 100).round()}%',
+            AppLocalizations.of(context)!
+                .opacityPercent((preferences.surfaceOpacity * 100).round()),
           ),
         ),
       ],

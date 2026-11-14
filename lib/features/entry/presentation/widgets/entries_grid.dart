@@ -1,5 +1,6 @@
 // Lay out entry cards in a responsive sliver grid inside the main scroll view
 
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -52,7 +53,7 @@ class EntriesGrid extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: WallpaperTextSurface(
                       child: Text(
-                        'Pinned',
+                        AppLocalizations.of(context)!.pinned,
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: colors.onSurface,
                           fontWeight: FontWeight.w700,
