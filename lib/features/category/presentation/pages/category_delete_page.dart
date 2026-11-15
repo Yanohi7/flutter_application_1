@@ -1,6 +1,7 @@
 // Show deletion impact counts and require confirmation before removing a category branch
 
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -125,7 +126,8 @@ class _CategoryDeletePageState extends State<CategoryDeletePage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              widget.category.name,
+              AppLocalizations.of(context)!
+                  .categoryDisplayName(widget.category.name),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 20),

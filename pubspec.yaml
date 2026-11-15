@@ -64,6 +64,7 @@ dependencies:
   flutter_launcher_icons: "^0.14.4"
   flutter_video_thumbnail_plus: ^1.0.7
   googleapis_auth: ^2.3.7
+  purchases_flutter: ^11.0.2
 
 # Keep the official DPAPI implementation without the unused legacy ATL migration plugin
 dependency_overrides:

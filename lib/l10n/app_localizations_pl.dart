@@ -757,7 +757,8 @@ class AppLocalizationsPl extends AppLocalizations {
   String get openSettings => 'Otwórz ustawienia';
 
   @override
-  String get usePrivateInformation => 'Zastosuj informacje prywatne';
+  String get privateInformationSaved =>
+      'Informacje prywatne zapisano w wersji roboczej.';
 
   @override
   String get discardPrivateChanges => 'Odrzucić zmiany prywatne?';
@@ -781,10 +782,13 @@ class AppLocalizationsPl extends AppLocalizations {
   String get endPremiumPreview => 'Zakończ podgląd Premium';
 
   @override
-  String get captureYourIdeas => 'Zapisuj swoje pomysły';
+  String get onboardingCaptureTitle => 'Zapisuj to, co ważne';
 
   @override
-  String get giveEverythingAPlace => 'Znajdź miejsce na każdy pomysł';
+  String get onboardingOrganizeTitle => 'Porządkuj swoje wpisy';
+
+  @override
+  String get onboardingPrivacyTitle => 'Prywatne informacje pod ochroną';
 
   @override
   String get takeYourEntriesWithYou => 'Zabierz wpisy ze sobą';
@@ -826,9 +830,18 @@ class AppLocalizationsPl extends AppLocalizations {
       'Nie udało się zapisać ustawień. Spróbuj ponownie.';
 
   @override
-  String
-  get startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt =>
-      'Zacznij od pomysłu. W razie potrzeby dodaj listę kontrolną, zdjęcie lub nagranie.';
+  String get onboardingCaptureDescription =>
+      'Myśli, pomysły, wspomnienia, przepisy, plany i wszystko, co chcesz zachować. Dołączaj do wpisów zdjęcia, dźwięk, filmy i dokumenty.';
+
+  @override
+  String get onboardingPrivacyDescription =>
+      'Zapisuj hasła i osobiste treści w chronionej sekcji wpisu. Otwieraj ją hasłem do EntryNote, biometrią lub kodem telefonu.';
+
+  @override
+  String get onboardingWorkCategory => 'Praca';
+
+  @override
+  String get onboardingPersonalCategory => 'Osobiste';
 
   @override
   String get groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch =>
@@ -857,7 +870,7 @@ class AppLocalizationsPl extends AppLocalizations {
       'Tu pojawią się wpisy tej kategorii. Podkategorie mają własne wpisy.';
 
   @override
-  String get keepTheFocusOnYourNotes => 'Skup się na notatkach';
+  String get keepTheFocusOnYourNotes => 'Skup się na wpisach';
 
   @override
   String get makeSpaceForYourIdeas => 'Zrób miejsce na pomysły';
@@ -884,6 +897,42 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get purchasesAreNotAvailableYet => 'Zakupy nie są jeszcze dostępne.';
+
+  @override
+  String premiumBuyForPrice(String price) {
+    return 'Kup Premium za $price';
+  }
+
+  @override
+  String get restorePurchases => 'Przywróć zakupy';
+
+  @override
+  String get premiumPurchaseActive => 'Premium jest aktywne.';
+
+  @override
+  String get premiumPurchaseCanceled => 'Zakup anulowany.';
+
+  @override
+  String get premiumPurchasesRestored => 'Przywrócono zakupy Premium.';
+
+  @override
+  String get premiumPurchaseFailed =>
+      'Nie udało się sfinalizować zakupu. Spróbuj ponownie.';
+
+  @override
+  String get premiumRestoreFailed =>
+      'Nie udało się przywrócić zakupów. Spróbuj ponownie.';
+
+  @override
+  String get premiumPurchasePending => 'Płatność oczekuje na potwierdzenie.';
+
+  @override
+  String get premiumPurchaseUnconfirmed =>
+      'Dostęp do Premium nie został jeszcze potwierdzony.';
+
+  @override
+  String get premiumNoPurchaseToRestore =>
+      'Nie znaleziono zakupu Premium do przywrócenia.';
 
   @override
   String get freePreviewNoPaymentRequired => 'Bezpłatny podgląd bez płatności.';
@@ -1061,6 +1110,86 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get couldNotConnectGoogle =>
       'Nie udało się połączyć konta Google. Spróbuj ponownie.';
+
+  @override
+  String get googleSignInCanceledOrDenied =>
+      'Logowanie przez Google anulowano lub odmówiono dostępu.';
+
+  @override
+  String get googleSignInBrowserFailed =>
+      'Nie udało się otworzyć przeglądarki, by zalogować się przez Google. Spróbuj ponownie.';
+
+  @override
+  String get couldNotReadGoogleAccount =>
+      'Nie udało się pobrać danych konta Google. Połącz je ponownie i spróbuj jeszcze raz.';
+
+  @override
+  String get googleSignInRequired =>
+      'Zaloguj się przez Google, aby zsynchronizować wpisy.';
+
+  @override
+  String get googleDriveAccessExpired =>
+      'Dostęp do Dysku Google wygasł. Połącz ponownie konto Google.';
+
+  @override
+  String get googleDrivePermissionRequired =>
+      'Połącz ponownie konto Google i zezwól na dostęp do Dysku Google, aby zsynchronizować wpisy.';
+
+  @override
+  String get googleDriveAccessDenied =>
+      'Dysk Google odmówił dostępu. Sprawdź uprawnienia i spróbuj ponownie.';
+
+  @override
+  String get googleDriveTemporarilyUnavailable =>
+      'Dysk Google jest chwilowo niedostępny. Spróbuj ponownie za chwilę.';
+
+  @override
+  String get googleDriveBackupMissing =>
+      'Nie znaleziono poprzedniej kopii zapasowej na Dysku Google. Twoje wpisy nadal są na tym urządzeniu.';
+
+  @override
+  String get googleDriveBackupVerificationFailed =>
+      'Nie udało się zweryfikować kopii zapasowej z Dysku Google. Twoje wpisy są bezpieczne na tym urządzeniu.';
+
+  @override
+  String get googleDriveBackupUnreadable =>
+      'Nie udało się odczytać pliku kopii zapasowej na Dysku Google.';
+
+  @override
+  String get googleDriveBackupKeyMissing =>
+      'W kopii zapasowej brakuje klucza potrzebnego do otwarcia prywatnych wpisów.';
+
+  @override
+  String get googleDriveUploadFailed =>
+      'Nie udało się przesłać wpisów na Dysk Google. Spróbuj ponownie.';
+
+  @override
+  String get googleDriveDownloadRetry =>
+      'Wróć do profilu lub listy wszystkich wpisów i ponów synchronizację.';
+
+  @override
+  String get googleDriveVersionsChanged =>
+      'Niektóre wpisy zmieniły się podczas synchronizacji. Zsynchronizuj je ponownie, aby zobaczyć najnowsze wersje.';
+
+  @override
+  String get googleDriveTooManyVersions =>
+      'Na Dysku Google jest zbyt wiele wersji wpisów, aby bezpiecznie je połączyć.';
+
+  @override
+  String get googleDriveIncompatibleVersion =>
+      'Nie udało się połączyć tej wersji kopii zapasowej z Twoimi wpisami.';
+
+  @override
+  String get googleDriveWorkspaceNotEmpty =>
+      'Nie udało się przywrócić kopii zapasowej, ponieważ ten profil ma już dane lokalne.';
+
+  @override
+  String get googleDriveDifferentPrivatePasswords =>
+      'Prywatne wpisy w tych kopiach mają różne zabezpieczenia. Otwórz każdą kopię jej hasłem, aby je połączyć.';
+
+  @override
+  String get googleDrivePrivatePasswordRequired =>
+      'Ustaw hasło prywatne przed zsynchronizowaniem prywatnych wpisów.';
 
   @override
   String get googleTimeout => 'Google odpowiada zbyt długo. Spróbuj ponownie.';
@@ -1401,12 +1530,40 @@ class AppLocalizationsPl extends AppLocalizations {
   String get editProfileName => 'Zmień nazwę';
 
   @override
+  String get moveWithoutPrivateEntries => 'Przenieś bez prywatnych wpisów';
+
+  @override
+  String get createTargetPrivatePassword =>
+      'Ustaw hasło prywatne dla tego konta';
+
+  @override
+  String get privateEntriesStayInGuest =>
+      'Możesz też zostawić prywatne wpisy wraz z załącznikami w profilu gościa.';
+
+  @override
   String get moveGuestEntries => 'Przenieś wpisy gościa';
 
   @override
   String moveGuestEntriesDescription(String email) {
-    return 'Przenieść wpisy gościa z tego urządzenia na konto $email? Wpisy z prywatnymi informacjami pozostaną w profilu gościa.';
+    return 'Przenieść wpisy gościa z tego urządzenia na konto $email wraz z prywatnymi informacjami i załącznikami?';
   }
+
+  @override
+  String get generalCategory => 'Ogólne';
+
+  @override
+  String get movingGuestEntries => 'Przenoszenie wpisów…';
+
+  @override
+  String get guestPrivatePassword => 'Prywatne hasło gościa';
+
+  @override
+  String get couldNotMoveGuestEntries =>
+      'Nie udało się przenieść wpisów gościa. Spróbuj ponownie.';
+
+  @override
+  String get setGuestPrivatePasswordBeforeTransfer =>
+      'Ustaw prywatne hasło w profilu gościa, aby przenieść prywatne wpisy.';
 
   @override
   String get entriesFromThisDevice => 'Wpisy z tego urządzenia';
@@ -1429,6 +1586,18 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get screenLockNeedsPriorUnlock =>
       'Blokada ekranu na tym telefonie nie otworzy tych wpisów. Spróbuj na urządzeniu, na którym były już otwierane, lub wpisz prywatne hasło.';
+
+  @override
+  String get privateRecoverySetupFailed =>
+      'Nie udało się skonfigurować odblokowania systemowego. Spróbuj ponownie, używając hasła prywatnego.';
+
+  @override
+  String get privateRecoveryKeyAccessFailed =>
+      'Nie udało się otworzyć chronionego klucza na tym urządzeniu. Spróbuj ponownie odblokować urządzenie lub użyj hasła prywatnego.';
+
+  @override
+  String get privateRecoveryBusy =>
+      'Weryfikacja systemowa już trwa. Zakończ ją i spróbuj ponownie.';
 
   @override
   String get couldNotVerifyScreenLock =>

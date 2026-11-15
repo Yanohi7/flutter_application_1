@@ -1,4 +1,5 @@
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 
 import '../../../category/presentation/pages/category_create_page.dart';
 
@@ -6,6 +7,7 @@ import '../../../category/presentation/pages/category_create_page.dart';
 import 'package:flutter/material.dart';
 
 import 'dart:async';
+import 'dart:io' show FileSystemException;
 
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
@@ -58,6 +60,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   late final EntryPlayback _playback;
   final _textDirty = ValueNotifier(false);
   final _privateController = PrivateContentEditorController();
+  bool _privateOpen = false;
   String _lastTitle = '';
   late bool _isPinned;
   late bool _isFavorite;
@@ -320,10 +323,13 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   Future<void> _pickDocuments() async {
     if (_isPickingAttachment || _isPreparingSave || _isAudioBusy) return;
     setState(() => _isPickingAttachment = true);
+    var pickedFiles = <XFile>[];
     try {
       final selected = await EntryFileInput.pick();
-      final skipped = <String>[];
-      for (final file in selected) {
+      pickedFiles = selected.files;
+      var skipped = selected.skipped;
+      var unreadable = selected.unreadable;
+      for (final file in pickedFiles) {
         if (!mounted) return;
         if (_hasAttachment(file.path)) continue;
         try {
@@ -335,14 +341,22 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             _draftDocuments.add(file);
           });
         } on FormatException {
-          skipped.add(file.name);
+          skipped = true;
+        } on FileSystemException {
+          unreadable = true;
         }
       }
       if (!mounted) return;
-      if (skipped.isNotEmpty) {
+      if (skipped) {
         _showMessage(
           AppLocalizations.of(context)!
               .someFilesWereSkippedUseSupportedFilesUpTo10MbEach,
+        );
+      }
+      if (unreadable) {
+        _showMessage(
+          AppLocalizations.of(context)!
+              .couldNotReadTheSelectedFilesPleaseTryAgain,
         );
       }
     } catch (_) {
@@ -353,6 +367,11 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         );
       }
     } finally {
+      for (final file in pickedFiles) {
+        if (!mounted || !_draftDocuments.contains(file)) {
+          unawaited(EntryFileInput.discardPickedFile(file.path));
+        }
+      }
       if (mounted) setState(() => _isPickingAttachment = false);
     }
   }
@@ -426,7 +445,14 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
       } else {
         _draftImages.removeWhere((draft) => draft.path == file.localPath);
         _draftAudios.removeWhere((draft) => draft.path == file.localPath);
-        _draftDocuments.removeWhere((draft) => draft.path == file.localPath);
+        final index = _draftDocuments.indexWhere(
+          (draft) => draft.path == file.localPath,
+        );
+        if (index != -1) {
+          _draftDocuments.removeAt(index);
+          _documentSizes.remove(file.localPath);
+          unawaited(EntryFileInput.discardPickedFile(file.localPath));
+        }
       }
       _attachmentLabels.remove(file.localPath);
     });
@@ -538,6 +564,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     _recordingFrame.dispose();
     for (final audio in _draftAudios) {
       unawaited(_playback.stopIfPath(audio.path));
+    }
+    for (final file in _draftDocuments) {
+      unawaited(EntryFileInput.discardPickedFile(file.path));
     }
     unawaited(_audioInput.dispose(beforeCleanup: _playback.waitForSourceIn));
     super.dispose();
@@ -706,6 +735,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         _playback.updateTrack(playing.localPath, savedTrack);
       }
     }
+    for (final file in _draftDocuments) {
+      unawaited(EntryFileInput.discardPickedFile(file.path));
+    }
     if (widget.entry != null) {
       setState(() {
         _original = saved;
@@ -764,6 +796,16 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     if (!mounted) return;
     FocusScope.of(context).unfocus();
     setState(() => _reading = !_reading);
+  }
+
+  Future<void> _togglePrivate() async {
+    if (_isPreparingSave || context.read<EntryCubit>().state.isWriting) return;
+    if (_privateOpen && _privateController.isAttached) {
+      final payload = await _privateController.commit();
+      if (!mounted || payload == null) return;
+      _privateContent = payload;
+    }
+    setState(() => _privateOpen = !_privateOpen);
   }
 
   Future<void> _openActions() async {
@@ -834,8 +876,9 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final location =
-        _category?.name ?? AppLocalizations.of(context)!.defaultLabel;
+    final location = AppLocalizations.of(context)!.categoryDisplayName(
+      _category?.name ?? AppLocalizations.of(context)!.defaultLabel,
+    );
     final original = _original;
     final photos = _photos;
     final audios = _audios;
@@ -1041,7 +1084,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                             ),
                           ),
                         const SizedBox(height: 12),
-                        if (_reading) ...[
+                        if (_reading)
                           ReadablePanel(
                             child: _content.text.isEmpty
                                 ? Text(AppLocalizations.of(context)!.noTextYet)
@@ -1050,12 +1093,8 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                                     onChecklistChanged: _saveChecklist,
                                     checklistEnabled: !state.isWriting,
                                   ),
-                          ),
-                          if (_privateContent.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            PrivateContentTile(payload: _privateContent),
-                          ],
-                        ] else
+                          )
+                        else
                           EntryDocumentEditor(
                             title: original == null ? _title : null,
                             titleFieldKey: original == null
@@ -1064,30 +1103,36 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                             titleFocus: original == null ? _titleFocus : null,
                             content: _content,
                             enabled: !state.isSaving && !_isPreparingSave,
-                            hasPrivateContent: _privateContent.isNotEmpty,
-                            onClosePrivate: () async {
-                              if (!_privateController.isAttached) return true;
-                              final payload = await _privateController.commit();
-                              if (!mounted || payload == null) return false;
-                              setState(() => _privateContent = payload);
-                              return true;
-                            },
-                            privatePanel: PrivateContentPage(
-                              payload: _privateContent,
-                              isEditable: true,
-                              embedded: true,
-                              controller: _privateController,
-                              onDirtyChanged: (value) {
-                                if (mounted) {
-                                  setState(() => _privateDraftDirty = value);
-                                }
-                              },
-                              onChanged: (value) {
-                                if (mounted) {
-                                  setState(() => _privateContent = value);
-                                }
-                              },
-                            ),
+                            privateOpen: _privateOpen,
+                            onTogglePrivate: _togglePrivate,
+                          ),
+                        if (_privateOpen || _privateContent.isNotEmpty)
+                          Padding(
+                            key: const ValueKey('entry-private-section'),
+                            padding: const EdgeInsets.only(top: 12),
+                            child: _privateOpen
+                                ? PrivateContentPage(
+                                    payload: _privateContent,
+                                    isEditable: !_reading,
+                                    embedded: true,
+                                    controller: _privateController,
+                                    onCollapse: _reading
+                                        ? _togglePrivate
+                                        : null,
+                                    onDirtyChanged: (value) {
+                                      if (mounted) {
+                                        setState(
+                                          () => _privateDraftDirty = value,
+                                        );
+                                      }
+                                    },
+                                    onChanged: (value) {
+                                      if (mounted) {
+                                        setState(() => _privateContent = value);
+                                      }
+                                    },
+                                  )
+                                : PrivateContentTile(onTap: _togglePrivate),
                           ),
                         if (!_reading ||
                             photos.isNotEmpty ||

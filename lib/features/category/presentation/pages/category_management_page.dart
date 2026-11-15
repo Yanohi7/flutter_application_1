@@ -1,6 +1,7 @@
 // Display an expandable category tree with create, rename, move and delete actions
 
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -143,7 +144,10 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                                         _expanded.remove(row.$1.id);
                                     }),
                             ),
-                            title: Text(row.$1.name),
+                            title: Text(
+                              AppLocalizations.of(context)!
+                                  .categoryDisplayName(row.$1.name),
+                            ),
                             onLongPress: state.isSaving
                                 ? null
                                 : () => CategoryActions.show(context, row.$1),

@@ -758,7 +758,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openSettings => 'Open settings';
 
   @override
-  String get usePrivateInformation => 'Use private information';
+  String get privateInformationSaved =>
+      'Private information saved to the draft.';
 
   @override
   String get discardPrivateChanges => 'Discard private changes?';
@@ -782,10 +783,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get endPremiumPreview => 'End Premium preview';
 
   @override
-  String get captureYourIdeas => 'Capture your ideas';
+  String get onboardingCaptureTitle => 'Capture what matters';
 
   @override
-  String get giveEverythingAPlace => 'Give everything a place';
+  String get onboardingOrganizeTitle => 'Organize your entries';
+
+  @override
+  String get onboardingPrivacyTitle => 'Keep private information secure';
 
   @override
   String get takeYourEntriesWithYou => 'Take your entries with you';
@@ -827,9 +831,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not save your preferences. Please try again.';
 
   @override
-  String
-  get startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt =>
-      'Start with a thought. Add a checklist, a photo or a voice recording when you need it.';
+  String get onboardingCaptureDescription =>
+      'Thoughts, ideas, memories, recipes, plans, and anything you want to keep. Attach photos, audio, videos, and documents to your entries.';
+
+  @override
+  String get onboardingPrivacyDescription =>
+      'Save passwords and personal text in a protected block in your entry. Open it with your EntryNote password, biometrics, or your device passcode.';
+
+  @override
+  String get onboardingWorkCategory => 'Work';
+
+  @override
+  String get onboardingPersonalCategory => 'Personal';
 
   @override
   String get groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch =>
@@ -858,7 +871,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Entries assigned directly to this category will appear here. Subcategories have their own entries.';
 
   @override
-  String get keepTheFocusOnYourNotes => 'Keep the focus on your notes';
+  String get keepTheFocusOnYourNotes => 'Keep the focus on your entries';
 
   @override
   String get makeSpaceForYourIdeas => 'Make space for your ideas';
@@ -885,6 +898,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get purchasesAreNotAvailableYet => 'Purchases are not available yet.';
+
+  @override
+  String premiumBuyForPrice(String price) {
+    return 'Buy Premium for $price';
+  }
+
+  @override
+  String get restorePurchases => 'Restore purchases';
+
+  @override
+  String get premiumPurchaseActive => 'Premium is active.';
+
+  @override
+  String get premiumPurchaseCanceled => 'Purchase canceled.';
+
+  @override
+  String get premiumPurchasesRestored => 'Premium purchases restored.';
+
+  @override
+  String get premiumPurchaseFailed =>
+      'Could not complete the purchase. Try again.';
+
+  @override
+  String get premiumRestoreFailed => 'Could not restore purchases. Try again.';
+
+  @override
+  String get premiumPurchasePending => 'Payment is pending.';
+
+  @override
+  String get premiumPurchaseUnconfirmed =>
+      'Premium access has not been confirmed yet.';
+
+  @override
+  String get premiumNoPurchaseToRestore =>
+      'No Premium purchase found to restore.';
 
   @override
   String get freePreviewNoPaymentRequired =>
@@ -1062,6 +1110,86 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get couldNotConnectGoogle =>
       'Could not connect your Google account. Try again.';
+
+  @override
+  String get googleSignInCanceledOrDenied =>
+      'Google sign-in was canceled or access was denied.';
+
+  @override
+  String get googleSignInBrowserFailed =>
+      'Could not open the browser for Google sign-in. Try again.';
+
+  @override
+  String get couldNotReadGoogleAccount =>
+      'Could not read your Google account details. Reconnect and try again.';
+
+  @override
+  String get googleSignInRequired =>
+      'Sign in with Google to sync your entries.';
+
+  @override
+  String get googleDriveAccessExpired =>
+      'Google Drive access has expired. Reconnect your Google account.';
+
+  @override
+  String get googleDrivePermissionRequired =>
+      'Reconnect your Google account and allow access to Google Drive to sync your entries.';
+
+  @override
+  String get googleDriveAccessDenied =>
+      'Google Drive denied access. Check your permissions and try again.';
+
+  @override
+  String get googleDriveTemporarilyUnavailable =>
+      'Google Drive is temporarily unavailable. Try again in a moment.';
+
+  @override
+  String get googleDriveBackupMissing =>
+      'The previous backup could not be found in Google Drive. Your entries are still on this device.';
+
+  @override
+  String get googleDriveBackupVerificationFailed =>
+      'Could not verify the backup from Google Drive. Your entries are safe on this device.';
+
+  @override
+  String get googleDriveBackupUnreadable =>
+      'Could not read a backup file in Google Drive.';
+
+  @override
+  String get googleDriveBackupKeyMissing =>
+      'The backup is missing the key needed to open private entries.';
+
+  @override
+  String get googleDriveUploadFailed =>
+      'Could not upload your entries to Google Drive. Try again.';
+
+  @override
+  String get googleDriveDownloadRetry =>
+      'Return to Profile or All Entries and try to sync again.';
+
+  @override
+  String get googleDriveVersionsChanged =>
+      'Some entries changed during sync. Sync again to see the latest versions.';
+
+  @override
+  String get googleDriveTooManyVersions =>
+      'Google Drive has too many versions of your entries to combine safely.';
+
+  @override
+  String get googleDriveIncompatibleVersion =>
+      'This version of the backup could not be combined with your entries.';
+
+  @override
+  String get googleDriveWorkspaceNotEmpty =>
+      'Could not restore the backup because this profile already has local data.';
+
+  @override
+  String get googleDriveDifferentPrivatePasswords =>
+      'These copies use different protection for private entries. Open them with their own passwords to combine them.';
+
+  @override
+  String get googleDrivePrivatePasswordRequired =>
+      'Set a private password before syncing private entries.';
 
   @override
   String get googleTimeout => 'Google took too long to respond. Try again.';
@@ -1396,12 +1524,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileName => 'Edit name';
 
   @override
+  String get moveWithoutPrivateEntries => 'Move without private entries';
+
+  @override
+  String get createTargetPrivatePassword =>
+      'Create a private password for this account';
+
+  @override
+  String get privateEntriesStayInGuest =>
+      'You can also leave private entries and their attachments in Guest.';
+
+  @override
   String get moveGuestEntries => 'Move guest entries';
 
   @override
   String moveGuestEntriesDescription(String email) {
-    return 'Move guest entries on this device to $email? Entries with private information stay in Guest.';
+    return 'Move guest entries, including private information and attachments, from this device to $email?';
   }
+
+  @override
+  String get generalCategory => 'General';
+
+  @override
+  String get movingGuestEntries => 'Moving entries…';
+
+  @override
+  String get guestPrivatePassword => 'Guest private password';
+
+  @override
+  String get couldNotMoveGuestEntries =>
+      'Could not move guest entries. Try again.';
+
+  @override
+  String get setGuestPrivatePasswordBeforeTransfer =>
+      'Set a private password in Guest before moving private entries.';
 
   @override
   String get entriesFromThisDevice => 'Entries from this device';
@@ -1424,6 +1580,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get screenLockNeedsPriorUnlock =>
       'Screen lock access is unavailable for these entries on this phone. Try a device where you’ve previously opened them, or use your private password.';
+
+  @override
+  String get privateRecoverySetupFailed =>
+      'Could not set up system unlock on this device. Try again using your private password.';
+
+  @override
+  String get privateRecoveryKeyAccessFailed =>
+      'Could not open the protected key on this device. Try system unlock again or use your private password.';
+
+  @override
+  String get privateRecoveryBusy =>
+      'System verification is already in progress. Finish it and try again.';
 
   @override
   String get couldNotVerifyScreenLock =>

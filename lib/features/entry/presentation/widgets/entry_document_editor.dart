@@ -131,18 +131,16 @@ class EntryDocumentEditor extends StatefulWidget {
     this.titleFieldKey,
     this.titleFocus,
     required this.content,
-    required this.privatePanel,
-    required this.hasPrivateContent,
-    required this.onClosePrivate,
+    required this.privateOpen,
+    required this.onTogglePrivate,
     this.enabled = true,
   });
   final TextEditingController? title;
   final GlobalKey? titleFieldKey;
   final FocusNode? titleFocus;
   final EntryDocumentController content;
-  final Widget privatePanel;
-  final bool hasPrivateContent;
-  final Future<bool> Function() onClosePrivate;
+  final bool privateOpen;
+  final VoidCallback onTogglePrivate;
   final bool enabled;
 
   @override
@@ -155,7 +153,6 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
   _DocumentSegment? _active;
   late final GlobalKey _firstTextKey;
   late final List<String> _baseline;
-  bool _privateOpen = false;
 
   @override
   void initState() {
@@ -258,12 +255,6 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
         alignment: 0.5,
       );
     });
-  }
-
-  Future<void> _togglePrivate() async {
-    if (_privateOpen && !await widget.onClosePrivate()) return;
-    if (!mounted) return;
-    setState(() => _privateOpen = !_privateOpen);
   }
 
   void _changeBlock(_DocumentSegment segment, String value) {
@@ -403,37 +394,6 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
                             ),
                           ),
                   ),
-                if (_privateOpen) ...[
-                  const SizedBox(height: 12),
-                  widget.privatePanel,
-                ] else if (widget.hasPrivateContent)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: InkWell(
-                      onTap: widget.enabled ? _togglePrivate : null,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.lock_outline,
-                              color: colors.primary,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                AppLocalizations.of(context)!
-                                    .privateInformationLocked,
-                              ),
-                            ),
-                            const Icon(Icons.expand_more, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -462,8 +422,8 @@ class _EntryDocumentEditorState extends State<EntryDocumentEditor> {
                 ),
                 IconButton(
                   tooltip: AppLocalizations.of(context)!.privateInformation,
-                  isSelected: _privateOpen,
-                  onPressed: widget.enabled ? _togglePrivate : null,
+                  isSelected: widget.privateOpen,
+                  onPressed: widget.enabled ? widget.onTogglePrivate : null,
                   icon: const Icon(Icons.lock_outline),
                   selectedIcon: Icon(
                     Icons.lock_open_outlined,

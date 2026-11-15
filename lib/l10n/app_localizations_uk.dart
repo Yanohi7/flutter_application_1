@@ -35,7 +35,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get chooseAModeOrFollowYourDevice =>
-      'Вибери режим або використовуй налаштування пристрою.';
+      'Виберіть режим або використовуйте налаштування пристрою.';
 
   @override
   String get light => 'Світлий';
@@ -47,7 +47,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get system => 'Системний';
 
   @override
-  String get yourWorkspace => 'Твій робочий простір';
+  String get yourWorkspace => 'Ваш робочий простір';
 
   @override
   String get allEntries => 'Усі записи';
@@ -101,7 +101,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get continueWriting => 'Продовжити писати…';
 
   @override
-  String get enterAnEntryTitle => 'Введи назву запису';
+  String get enterAnEntryTitle => 'Введіть назву запису';
 
   @override
   String get category => 'Категорія';
@@ -122,7 +122,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get chooseCategory => 'Вибрати категорію';
 
   @override
-  String get selectACategory => 'Вибери категорію';
+  String get selectACategory => 'Виберіть категорію';
 
   @override
   String get editCategory => 'Редагувати категорію';
@@ -161,7 +161,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get clearCategorySearch => 'Очистити пошук категорій';
 
   @override
-  String get enterTheCategoryName => 'Введи назву категорії.';
+  String get enterTheCategoryName => 'Введіть назву категорії.';
 
   @override
   String get save => 'Зберегти';
@@ -221,10 +221,10 @@ class AppLocalizationsUk extends AppLocalizations {
   String get tryAgain => 'Спробувати ще раз';
 
   @override
-  String get pleaseTryAgain => 'Спробуй ще раз.';
+  String get pleaseTryAgain => 'Спробуйте ще раз.';
 
   @override
-  String get pleaseWait => 'Зачекай…';
+  String get pleaseWait => 'Зачекайте…';
 
   @override
   String get loading => 'Завантаження…';
@@ -270,7 +270,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get ifYouLeaveNowYourChangesWillNotBeSaved =>
-      'Якщо вийдеш зараз, зміни не збережуться.';
+      'Якщо вийдете зараз, зміни не збережуться.';
 
   @override
   String get readingMode => 'Режим читання';
@@ -447,7 +447,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get resume => 'Продовжити';
 
   @override
-  String get tapToListen => 'Натисни, щоб послухати';
+  String get tapToListen => 'Натисніть, щоб послухати';
 
   @override
   String get playAudio => 'Відтворити аудіо';
@@ -465,7 +465,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get audioName => 'Назва аудіо';
 
   @override
-  String get enterAnAudioName => 'Введи назву аудіо';
+  String get enterAnAudioName => 'Введіть назву аудіо';
 
   @override
   String get renameAudio => 'Перейменувати аудіо';
@@ -704,7 +704,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get newPrivatePassword => 'Новий приватний пароль';
 
   @override
-  String get repeatPrivatePassword => 'Повтори приватний пароль';
+  String get repeatPrivatePassword => 'Повторіть приватний пароль';
 
   @override
   String get createPassword => 'Створити пароль';
@@ -719,7 +719,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get resetPrivatePassword => 'Скинути приватний пароль';
 
   @override
-  String get setANewPrivatePassword => 'Створи новий приватний пароль';
+  String get setANewPrivatePassword => 'Створіть новий приватний пароль';
 
   @override
   String get addABackupPrivatePassword => 'Додати запасний приватний пароль';
@@ -752,13 +752,14 @@ class AppLocalizationsUk extends AppLocalizations {
   String get setUpBiometricUnlock => 'Налаштувати біометричне розблокування';
 
   @override
-  String get useScreenLock => 'Підтвердити кодом екрана';
+  String get useScreenLock => 'Системне розблокування';
 
   @override
   String get openSettings => 'Відкрити налаштування';
 
   @override
-  String get usePrivateInformation => 'Застосувати приватну інформацію';
+  String get privateInformationSaved =>
+      'Приватну інформацію збережено в чернетці.';
 
   @override
   String get discardPrivateChanges => 'Відкинути приватні зміни?';
@@ -782,23 +783,26 @@ class AppLocalizationsUk extends AppLocalizations {
   String get endPremiumPreview => 'Завершити попередній перегляд Premium';
 
   @override
-  String get captureYourIdeas => 'Записуй свої ідеї';
+  String get onboardingCaptureTitle => 'Записуйте те, що важливо';
 
   @override
-  String get giveEverythingAPlace => 'Знайди місце для кожної ідеї';
+  String get onboardingOrganizeTitle => 'Упорядковуйте свої записи';
 
   @override
-  String get takeYourEntriesWithYou => 'Тримай записи під рукою';
+  String get onboardingPrivacyTitle => 'Приватна інформація під захистом';
 
   @override
-  String get startUsingEntries => 'Почати користуватися Entries';
+  String get takeYourEntriesWithYou => 'Тримайте записи під рукою';
 
   @override
-  String get startWithYourFirstEntry => 'Створи перший запис';
+  String get startUsingEntries => 'Почати користуватися EntryNote';
+
+  @override
+  String get startWithYourFirstEntry => 'Створіть перший запис';
 
   @override
   String get captureAnIdeaAndKeepItOrganized =>
-      'Запиши ідею та збережи її там, де легко знайдеш.';
+      'Запишіть ідею та збережіть її там, де легко знайдете.';
 
   @override
   String get noFavoritesYet => 'Поки немає обраного';
@@ -811,7 +815,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get tapTheStarOnAnEntryToKeepItHere =>
-      'Натисни зірочку біля запису, щоб він з’явився тут.';
+      'Натисніть зірочку біля запису, щоб він з’явився тут.';
 
   @override
   String get entriesSavedOnThisDevice =>
@@ -825,33 +829,42 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotSaveYourPreferencesPleaseTryAgain =>
-      'Не вдалося зберегти налаштування. Спробуй ще раз.';
+      'Не вдалося зберегти налаштування. Спробуйте ще раз.';
 
   @override
-  String
-  get startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt =>
-      'Почни з думки. За потреби додай чекліст, фото чи голосовий запис.';
+  String get onboardingCaptureDescription =>
+      'Думки, ідеї, спогади, рецепти, плани й усе, що хочете зберегти. Прикріплюйте до записів фото, аудіо, відео й документи.';
+
+  @override
+  String get onboardingPrivacyDescription =>
+      'Зберігайте паролі й особистий текст у захищеному блоці запису. Відкривайте його паролем EntryNote або кнопкою «Розблокувати».';
+
+  @override
+  String get onboardingWorkCategory => 'Робота';
+
+  @override
+  String get onboardingPersonalCategory => 'Особисте';
 
   @override
   String get groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch =>
-      'Групуй записи за категоріями, закріплюй важливе й знаходь потрібне через пошук.';
+      'Групуйте записи за категоріями, закріплюйте важливе й знаходьте потрібне через пошук.';
 
   @override
   String
   get signInWithGoogleToSyncEntriesCategoriesAndAttachmentsAcrossYourDevicesYouCanAlwaysWorkOffline =>
-      'Увійди через Google, щоб синхронізувати записи, категорії та вкладення між пристроями. Працювати можна й офлайн.';
+      'Увійдіть через Google, щоб синхронізувати записи, категорії та вкладення між пристроями. Працювати можна й офлайн.';
 
   @override
   String get noEntriesMatchYourSearchAndFiltersInThisView =>
-      'У цьому перегляді немає записів за твоїм пошуком і фільтрами.';
+      'У цьому перегляді немає записів за Вашим пошуком і фільтрами.';
 
   @override
   String get tryADifferentTitleOrTextOrSearchInAllCategories =>
-      'Спробуй іншу назву чи текст або пошукай у всіх категоріях.';
+      'Спробуйте іншу назву чи текст або пошукайте у всіх категоріях.';
 
   @override
   String get tryAnotherDateRangeOrContentTypeForThisView =>
-      'Вибери інший період або тип вмісту.';
+      'Виберіть інший період або тип вмісту.';
 
   @override
   String
@@ -859,10 +872,10 @@ class AppLocalizationsUk extends AppLocalizations {
       'Тут з’являться записи цієї категорії. Записи підкатегорій відкриваються окремо.';
 
   @override
-  String get keepTheFocusOnYourNotes => 'Зосередься на записах';
+  String get keepTheFocusOnYourNotes => 'Зосередьтеся на записах';
 
   @override
-  String get makeSpaceForYourIdeas => 'Звільни простір для ідей';
+  String get makeSpaceForYourIdeas => 'Звільніть простір для ідей';
 
   @override
   String get beautifulColorThemesAFocusedWorkspaceMoreRoomForWhatMatters =>
@@ -878,14 +891,50 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get addAsManyFilesAsYouLikeWithoutWatchingAds =>
-      'Додавай скільки завгодно файлів без перегляду реклами.';
+      'Додавайте скільки завгодно файлів без перегляду реклами.';
 
   @override
   String get unlockPhotoBackgroundsFor24Hours =>
-      'Відкрий фотофони на 24 години.';
+      'Відкрийте фотофони на 24 години.';
 
   @override
   String get purchasesAreNotAvailableYet => 'Покупки ще недоступні.';
+
+  @override
+  String premiumBuyForPrice(String price) {
+    return 'Купити Premium за $price';
+  }
+
+  @override
+  String get restorePurchases => 'Відновити покупки';
+
+  @override
+  String get premiumPurchaseActive => 'Premium активовано.';
+
+  @override
+  String get premiumPurchaseCanceled => 'Покупку скасовано.';
+
+  @override
+  String get premiumPurchasesRestored => 'Покупки Premium відновлено.';
+
+  @override
+  String get premiumPurchaseFailed =>
+      'Не вдалося завершити покупку. Спробуйте ще раз.';
+
+  @override
+  String get premiumRestoreFailed =>
+      'Не вдалося відновити покупки. Спробуйте ще раз.';
+
+  @override
+  String get premiumPurchasePending => 'Очікуємо підтвердження оплати.';
+
+  @override
+  String get premiumPurchaseUnconfirmed =>
+      'Доступ до Premium ще не підтверджено.';
+
+  @override
+  String get premiumNoPurchaseToRestore =>
+      'Покупок Premium для відновлення не знайдено.';
 
   @override
   String get freePreviewNoPaymentRequired => 'Безплатний перегляд без оплати.';
@@ -896,20 +945,20 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get dragToRepositionPinchOrUseTheZoomSlider =>
-      'Перетягни фото. Для масштабу скористайся жестом або повзунком.';
+      'Перетягніть фото. Для масштабу скористайтеся жестом або повзунком.';
 
   @override
   String get dragThePhotoToRepositionItOrPinchToZoom =>
-      'Перетягни фото або зміни масштаб двома пальцями.';
+      'Перетягніть фото або змініть масштаб двома пальцями.';
 
   @override
   String
   get makeItYoursWithAPhotoPreviewTheCropAndAdjustReadabilityBeforeApplying =>
-      'Вибери фото, перевір кадрування й налаштуй читабельність перед застосуванням.';
+      'Виберіть фото, перевірте кадрування й налаштуйте читабельність перед застосуванням.';
 
   @override
   String get previewTheChangeOnYourNotesBeforeApplyingIt =>
-      'Переглянь зміну на своїх записах перед застосуванням.';
+      'Перегляньте зміну на своїх записах перед застосуванням.';
 
   @override
   String get yourCurrentColorThemeWillBecomeTheBackgroundAgain =>
@@ -948,29 +997,29 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get saveTheEntryAfterwardsToKeepTheseChanges =>
-      'Після цього збережи запис, щоб застосувати зміни.';
+      'Після цього збережіть запис, щоб застосувати зміни.';
 
   @override
   String get passwordRecoveryDetailsOrOtherPrivateInformation =>
       'Пароль, дані для відновлення або інша приватна інформація';
 
   @override
-  String get useAtLeast6Characters => 'Використай щонайменше 6 символів.';
+  String get useAtLeast6Characters => 'Використайте щонайменше 6 символів.';
 
   @override
   String get useAtLeast6CharactersAndEnterTheSamePasswordTwice =>
-      'Використай щонайменше 6 символів і введи той самий пароль двічі.';
+      'Використайте щонайменше 6 символів і введіть той самий пароль двічі.';
 
   @override
-  String get enterYourPrivatePassword => 'Введи приватний пароль.';
+  String get enterYourPrivatePassword => 'Введіть приватний пароль.';
 
   @override
   String get enterYourPrivatePasswordOrUseBiometrics =>
-      'Введи приватний пароль або скористайся біометрією.';
+      'Введіть приватний пароль або скористайтеся біометрією.';
 
   @override
   String get createAPasswordToProtectThisSection =>
-      'Створи пароль, щоб захистити цей розділ.';
+      'Створіть пароль, щоб захистити цей розділ.';
 
   @override
   String get aScreenLockLetsYouResetThisPasswordOnThisPhone =>
@@ -978,25 +1027,25 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get useYourPhoneSBiometricsToSetANewPassword =>
-      'Скористайся біометрією телефона, щоб установити новий пароль.';
+      'Скористайтеся біометрією телефона, щоб установити новий пароль.';
 
   @override
   String
   get useTheFingerprintOrFaceRecognitionConfiguredOnThisDeviceForEverydayAccess =>
-      'Для щоденного доступу використовуй відбиток або розпізнавання обличчя з налаштувань пристрою.';
+      'Для щоденного доступу використовуйте відбиток або розпізнавання обличчя з налаштувань пристрою.';
 
   @override
   String get unlockWithYourFingerprintOrFaceRecognitionOnThisDevice =>
-      'Розблоковуй відбитком або розпізнаванням обличчя на цьому пристрої.';
+      'Розблоковуйте відбитком або розпізнаванням обличчя на цьому пристрої.';
 
   @override
   String get unlockWithBiometricsToSetABackupPassword =>
-      'Розблокуй біометрією, щоб створити запасний пароль.';
+      'Розблокуйте біометрією, щоб створити запасний пароль.';
 
   @override
   String
   get addAFingerprintOrFaceUnlockInYourPhoneSettingsThenReturnHereAndTapUseBiometricsAgain =>
-      'Додай відбиток або розпізнавання обличчя в налаштуваннях телефона. Повернись і знову натисни «Використати біометрію».';
+      'Додайте відбиток або розпізнавання обличчя в налаштуваннях телефона. Поверніться і знову натисніть «Використати біометрію».';
 
   @override
   String get theseChangesHaveNotBeenAddedToTheEntryYet =>
@@ -1004,19 +1053,19 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get theFirstAttachmentIsFreeCompleteOneAdToAddThisAttachment =>
-      'Перше вкладення безплатне. Щоб додати це, переглянь одну рекламу до кінця.';
+      'Перше вкладення безплатне. Щоб додати це, перегляньте одну рекламу до кінця.';
 
   @override
   String get finishTheAdForItToCount =>
-      'Додивись рекламу, щоб вона зарахувалася.';
+      'Додивіться рекламу, щоб вона зарахувалася.';
 
   @override
   String get finishTheAdToAddThisAttachment =>
-      'Додивись рекламу, щоб додати вкладення.';
+      'Додивіться рекламу, щоб додати вкладення.';
 
   @override
   String get anAdIsUnavailableRightNowTryAgainLater =>
-      'Реклама зараз недоступна. Спробуй пізніше.';
+      'Реклама зараз недоступна. Спробуйте пізніше.';
 
   @override
   String get thisAttachmentWillBeRemovedFromTheEntryWhenYouSave =>
@@ -1024,7 +1073,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get someFilesWereSkippedUseSupportedFilesUpTo10MbEach =>
-      'Деякі файли пропущено. Вибери підтримувані файли до 10 МБ кожен.';
+      'Деякі файли пропущено. Виберіть підтримувані файли до 10 МБ кожен.';
 
   @override
   String get theDefaultCategoryCannotBeDeleted =>
@@ -1061,13 +1110,94 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotConnectGoogle =>
-      'Не вдалося під’єднати акаунт Google. Спробуй ще раз.';
+      'Не вдалося під’єднати акаунт Google. Спробуйте ще раз.';
 
   @override
-  String get googleTimeout => 'Google довго не відповідає. Спробуй ще раз.';
+  String get googleSignInCanceledOrDenied =>
+      'Вхід через Google скасовано або доступ відхилено.';
 
   @override
-  String get checkConnection => 'Перевір інтернет-з’єднання й спробуй ще раз.';
+  String get googleSignInBrowserFailed =>
+      'Не вдалося відкрити браузер для входу через Google. Спробуйте ще раз.';
+
+  @override
+  String get couldNotReadGoogleAccount =>
+      'Не вдалося отримати дані Вашого акаунта Google. Під’єднайте його знову й повторіть спробу.';
+
+  @override
+  String get googleSignInRequired =>
+      'Увійдіть через Google, щоб синхронізувати записи.';
+
+  @override
+  String get googleDriveAccessExpired =>
+      'Термін дії доступу до Google Drive закінчився. Під’єднайте акаунт Google знову.';
+
+  @override
+  String get googleDrivePermissionRequired =>
+      'Під’єднайте акаунт Google знову й дозвольте доступ до Google Drive, щоб синхронізувати записи.';
+
+  @override
+  String get googleDriveAccessDenied =>
+      'Google Drive відхилив запит на доступ. Перевірте дозволи й повторіть спробу.';
+
+  @override
+  String get googleDriveTemporarilyUnavailable =>
+      'Google Drive тимчасово недоступний. Спробуйте трохи пізніше.';
+
+  @override
+  String get googleDriveBackupMissing =>
+      'Попередню резервну копію в Google Drive не знайдено. Ваші записи залишилися на цьому пристрої.';
+
+  @override
+  String get googleDriveBackupVerificationFailed =>
+      'Не вдалося перевірити резервну копію з Google Drive. Ваші записи збережені на цьому пристрої.';
+
+  @override
+  String get googleDriveBackupUnreadable =>
+      'Не вдалося прочитати файл резервної копії в Google Drive.';
+
+  @override
+  String get googleDriveBackupKeyMissing =>
+      'У резервній копії бракує ключа для відкриття приватних записів.';
+
+  @override
+  String get googleDriveUploadFailed =>
+      'Не вдалося завантажити записи в Google Drive. Спробуйте ще раз.';
+
+  @override
+  String get googleDriveDownloadRetry =>
+      'Поверніться до профілю або списку всіх записів і повторіть синхронізацію.';
+
+  @override
+  String get googleDriveVersionsChanged =>
+      'Деякі записи змінилися під час синхронізації. Повторіть її, щоб побачити останні версії.';
+
+  @override
+  String get googleDriveTooManyVersions =>
+      'У Google Drive забагато версій записів, щоб безпечно їх об’єднати.';
+
+  @override
+  String get googleDriveIncompatibleVersion =>
+      'Цю версію резервної копії не вдалося об’єднати з Вашими записами.';
+
+  @override
+  String get googleDriveWorkspaceNotEmpty =>
+      'Не вдалося відновити резервну копію, бо в цьому профілі вже є локальні дані.';
+
+  @override
+  String get googleDriveDifferentPrivatePasswords =>
+      'Приватні записи в цих копіях мають різний захист. Щоб об’єднати копії, відкрийте кожну її паролем.';
+
+  @override
+  String get googleDrivePrivatePasswordRequired =>
+      'Створіть приватний пароль, перш ніж синхронізувати приватні записи.';
+
+  @override
+  String get googleTimeout => 'Google довго не відповідає. Спробуйте ще раз.';
+
+  @override
+  String get checkConnection =>
+      'Перевірте інтернет-з’єднання й спробуйте ще раз.';
 
   @override
   String get couldNotSync =>
@@ -1096,7 +1226,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String tryThemeFor24Hours(String theme) {
-    return 'Спробуй тему «$theme» на 24 години.';
+    return 'Спробуйте тему «$theme» на 24 години.';
   }
 
   @override
@@ -1225,35 +1355,35 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotSaveTheImageLayoutPleaseTryAgain =>
-      'Не вдалося зберегти розкладку фото. Спробуй ще раз.';
+      'Не вдалося зберегти розкладку фото. Спробуйте ще раз.';
 
   @override
   String get couldNotSaveTheNoteSize => 'Не вдалося зберегти розмір карток.';
 
   @override
   String get couldNotUpdateThePreviewPleaseTryAgain =>
-      'Не вдалося оновити попередній перегляд. Спробуй ще раз.';
+      'Не вдалося оновити попередній перегляд. Спробуйте ще раз.';
 
   @override
   String get couldNotSaveYourBackgroundPleaseTryAgain =>
-      'Не вдалося зберегти фон. Спробуй ще раз.';
+      'Не вдалося зберегти фон. Спробуйте ще раз.';
 
   @override
   String get couldNotUpdateYourPhoto => 'Не вдалося оновити фото.';
 
   @override
   String get couldNotCropThisPhotoTryAgain =>
-      'Не вдалося обрізати фото. Спробуй ще раз.';
+      'Не вдалося обрізати фото. Спробуйте ще раз.';
 
   @override
   String get couldNotRenderThePhoto => 'Не вдалося відобразити фото.';
 
   @override
-  String get chooseAPhotoSmallerThan20Mb => 'Вибери фото розміром до 20 МБ.';
+  String get chooseAPhotoSmallerThan20Mb => 'Виберіть фото розміром до 20 МБ.';
 
   @override
   String get chooseAPhotoUpTo16000PixelsOnEachSide =>
-      'Вибери фото до 16 000 пікселів з кожного боку.';
+      'Виберіть фото до 16 000 пікселів з кожного боку.';
 
   @override
   String get privateStorageIsUnavailableOnThisDevice =>
@@ -1261,28 +1391,28 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotUnlockPrivateInformationPleaseTryAgain =>
-      'Не вдалося розблокувати приватну інформацію. Спробуй ще раз.';
+      'Не вдалося розблокувати приватну інформацію. Спробуйте ще раз.';
 
   @override
   String get couldNotSaveThePrivatePasswordPleaseTryAgain =>
-      'Не вдалося зберегти приватний пароль. Спробуй ще раз.';
+      'Не вдалося зберегти приватний пароль. Спробуйте ще раз.';
 
   @override
   String get biometricAccessIsUnavailableOrWasCancelledUseYourPrivatePassword =>
-      'Біометрія недоступна або скасована. Введи приватний пароль.';
+      'Біометрія недоступна або скасована. Введіть приватний пароль.';
 
   @override
   String
   get biometricsAreUnavailableUnlockWithYourPrivatePasswordToSetThemUpAgain =>
-      'Біометрія недоступна. Розблокуй паролем, щоб налаштувати її знову.';
+      'Біометрія недоступна. Розблокуйте паролем, щоб налаштувати її знову.';
 
   @override
   String get biometricsCouldNotBeSetUpCheckYourDeviceSettingsOrTryAgain =>
-      'Не вдалося налаштувати біометрію. Перевір налаштування пристрою або спробуй ще раз.';
+      'Не вдалося налаштувати біометрію. Перевірте налаштування пристрою або спробуйте ще раз.';
 
   @override
   String get couldNotLoadStartupPreferencesPleaseTryAgain =>
-      'Не вдалося завантажити налаштування. Спробуй ще раз.';
+      'Не вдалося завантажити налаштування. Спробуйте ще раз.';
 
   @override
   String get couldNotOpenTheApp => 'Не вдалося відкрити застосунок.';
@@ -1293,18 +1423,18 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotSaveTheAttachmentsPleaseTryAgain =>
-      'Не вдалося зберегти вкладення. Спробуй ще раз.';
+      'Не вдалося зберегти вкладення. Спробуйте ще раз.';
 
   @override
   String get couldNotReadTheSelectedFilesPleaseTryAgain =>
-      'Не вдалося прочитати вибрані файли. Спробуй ще раз.';
+      'Не вдалося прочитати вибрані файли. Спробуйте ще раз.';
 
   @override
   String get couldNotDeleteTheEntry => 'Не вдалося видалити запис.';
 
   @override
   String get couldNotDeleteCategoryPleaseTryAgain =>
-      'Не вдалося видалити категорію. Спробуй ще раз.';
+      'Не вдалося видалити категорію. Спробуйте ще раз.';
 
   @override
   String get couldNotLoadDeletionDetails =>
@@ -1312,7 +1442,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get categoriesAreNotReadyPleaseTryAgain =>
-      'Категорії ще завантажуються. Спробуй ще раз.';
+      'Категорії ще завантажуються. Спробуйте ще раз.';
 
   @override
   String get failedToSaveCategory => 'Не вдалося зберегти категорію.';
@@ -1325,7 +1455,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get failedToPickAnImagePleaseTryAgain =>
-      'Не вдалося вибрати зображення. Спробуй ще раз.';
+      'Не вдалося вибрати зображення. Спробуйте ще раз.';
 
   @override
   String get couldNotPauseOrResumeTheRecording =>
@@ -1347,23 +1477,23 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get finishUnlockingOrSavingPrivateInformationFirst =>
-      'Спершу заверши розблокування або збереження приватної інформації.';
+      'Спершу завершіть розблокування або збереження приватної інформації.';
 
   @override
   String get couldNotProtectTheLatestEditPleaseTryAgain =>
-      'Не вдалося захистити останні зміни. Спробуй ще раз.';
+      'Не вдалося захистити останні зміни. Спробуйте ще раз.';
 
   @override
   String get couldNotProtectTheLatestEditUnlockToCheckAndTryAgain =>
-      'Не вдалося захистити останні зміни. Розблокуй і перевір їх.';
+      'Не вдалося захистити останні зміни. Розблокуйте і перевірте їх.';
 
   @override
   String get couldNotKeepTheLatestPrivateEditPleaseUnlockAndCheckIt =>
-      'Не вдалося зберегти останню приватну зміну. Розблокуй і перевір її.';
+      'Не вдалося зберегти останню приватну зміну. Розблокуйте і перевірте її.';
 
   @override
   String get keepYourEntriesAndImportDifferingDriveEntriesAsCopies =>
-      'Збережи свої записи й імпортуй відмінні версії з Drive як копії.';
+      'Збережіть свої записи й імпортуйте відмінні версії з Drive як копії.';
 
   @override
   String
@@ -1371,7 +1501,7 @@ class AppLocalizationsUk extends AppLocalizations {
       'Локальні записи та профіль збережуться. Відмінні записи з Google Drive і їхні вкладення додадуться до категорії копій.';
 
   @override
-  String get unlockToView => '•••••••• · Розблокуй для перегляду';
+  String get unlockToView => '•••••••• · Розблокуйте для перегляду';
 
   @override
   String get thisEntryIsNoLongerAvailable => 'Цей запис більше недоступний';
@@ -1381,7 +1511,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotLoadEntries =>
-      'Не вдалося завантажити записи. Спробуй ще раз.';
+      'Не вдалося завантажити записи. Спробуйте ще раз.';
 
   @override
   String get couldNotUpdateFlag => 'Не вдалося змінити позначку.';
@@ -1400,46 +1530,86 @@ class AppLocalizationsUk extends AppLocalizations {
   String get editProfileName => 'Змінити ім’я';
 
   @override
+  String get moveWithoutPrivateEntries => 'Перенести без приватних записів';
+
+  @override
+  String get createTargetPrivatePassword =>
+      'Створіть приватний пароль для цього акаунта';
+
+  @override
+  String get privateEntriesStayInGuest =>
+      'За бажанням залиште приватні записи разом із вкладеннями в гостьовому профілі.';
+
+  @override
   String get moveGuestEntries => 'Перенести гостьові записи';
 
   @override
   String moveGuestEntriesDescription(String email) {
-    return 'Перенести гостьові записи з цього пристрою в $email? Записи з приватною інформацією залишаться в гостьовому профілі.';
+    return 'Перенести гостьові записи з цього пристрою в акаунт $email разом із приватною інформацією та вкладеннями?';
   }
+
+  @override
+  String get generalCategory => 'Загальне';
+
+  @override
+  String get movingGuestEntries => 'Перенесення записів…';
+
+  @override
+  String get guestPrivatePassword => 'Приватний пароль гостя';
+
+  @override
+  String get couldNotMoveGuestEntries =>
+      'Не вдалося перенести гостьові записи. Спробуйте ще раз.';
+
+  @override
+  String get setGuestPrivatePasswordBeforeTransfer =>
+      'Налаштуйте приватний пароль у гостьовому профілі, щоб перенести приватні записи.';
 
   @override
   String get entriesFromThisDevice => 'Записи з цього пристрою';
 
   @override
   String get chooseWorkspaceGoogleAccount =>
-      'Вибери акаунт Google для цього профілю.';
+      'Виберіть акаунт Google для цього профілю.';
 
   @override
   String get guestEntriesChangedDuringTransfer =>
       'Деякі гостьові записи змінилися під час перенесення. Обидві копії збережено.';
 
   @override
-  String get setUpScreenLock => 'Налаштуй блокування екрана';
+  String get setUpScreenLock => 'Налаштуйте блокування екрана';
 
   @override
   String get screenLockSetupInstructions =>
-      'Установи PIN-код, графічний ключ або код допуску в налаштуваннях телефону, потім повернись і спробуй знову.';
+      'Налаштуйте блокування екрана в налаштуваннях телефона, поверніться до EntryNote та спробуйте ще раз.';
 
   @override
   String get screenLockNeedsPriorUnlock =>
-      'На цьому телефоні системний доступ до цих записів недоступний. Спробуй на пристрої, де ти вже відкривав їх, або введи приватний пароль.';
+      'На цьому пристрої потрібно знову налаштувати системне розблокування. Відкрийте приватну інформацію паролем EntryNote або скористайтеся пристроєм, на якому системне розблокування вже працює.';
+
+  @override
+  String get privateRecoverySetupFailed =>
+      'Не вдалося налаштувати системне розблокування на цьому пристрої. Повторіть спробу з приватним паролем.';
+
+  @override
+  String get privateRecoveryKeyAccessFailed =>
+      'Не вдалося відкрити захищений ключ на цьому пристрої. Спробуйте системне розблокування ще раз або введіть приватний пароль.';
+
+  @override
+  String get privateRecoveryBusy =>
+      'Системна перевірка вже триває. Завершіть її та повторіть спробу.';
 
   @override
   String get couldNotVerifyScreenLock =>
-      'Не вдалося перевірити блокування екрана. Спробуй ще раз або введи приватний пароль.';
+      'Системна перевірка не завершилася. Спробуйте ще раз або введіть приватний пароль.';
 
   @override
   String get enterPasswordOrUseScreenLock =>
-      'Введи приватний пароль або розблокуй доступ через телефон.';
+      'Введіть приватний пароль або натисніть «Розблокувати».';
 
   @override
   String get privatePasswordUnavailable =>
-      'Відкрий приватну інформацію на пристрої, де вона вже доступна.';
+      'Відкрийте приватну інформацію на пристрої, де вона вже доступна.';
 
   @override
   String get addPrivateLogin => 'Додати логін і пароль';
@@ -1473,11 +1643,11 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get couldNotCopyPrivateValue =>
-      'Не вдалося скопіювати. Спробуй ще раз.';
+      'Не вдалося скопіювати. Спробуйте ще раз.';
 
   @override
   String get googleDriveReconnect =>
-      'Повторно підключи Google Drive, щоб продовжити синхронізацію.';
+      'Повторно підключіть Google Drive, щоб продовжити синхронізацію.';
 
   @override
   String get localPrivatePassword => 'Приватний пароль на цьому пристрої';

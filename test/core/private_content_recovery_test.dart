@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_application_1/core/security/private_content_store.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,6 +12,55 @@ void main() {
   const newPassword = 'replacement private phrase';
 
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+  test('copies a read-only platform key before it can be wiped', () async {
+    const channel = MethodChannel('test/private_crypto');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final reply = const StandardMethodCodec()
+        .encodeSuccessEnvelope(Uint8List.fromList(List.filled(32, 7)))
+        .asUnmodifiableView();
+    messenger.setMockMessageHandler(channel.name, (_) async => reply);
+    addTearDown(() => messenger.setMockMessageHandler(channel.name, null));
+
+    final platformKey = (await channel.invokeMethod<Uint8List>('key'))!;
+    expect(
+      () => platformKey.fillRange(0, platformKey.length, 0),
+      throwsUnsupportedError,
+    );
+
+    final owned =
+        (await PrivateContentStore.invokeOwnedPlatformValue<Uint8List>(
+          channel,
+          'key',
+          null,
+        ))!;
+    expect(owned, platformKey);
+    owned.fillRange(0, owned.length, 0);
+    expect(owned, everyElement(0));
+    expect(platformKey, everyElement(7));
+  });
+
+  test('opens an existing v1 envelope with a Unicode password', () async {
+    const envelope =
+        '{"v":1,"s":"AAECAwQFBgcICQoL","n":"DA0ODxAREhMUFRYX",'
+        '"c":"b8Gq+TlxfxRuY5pw8DEoxQuFO8IBjKlTmgCVsRIBgds=",'
+        '"m":"3GUU602uP+8K9iZnjSxs6w==",'
+        '"keyId":"Yw3NKWbEM2aRElRIu7JbT_QSpJxzLbLIq8G4WBvXEN0="}';
+    const record =
+        '{"v":1,"n":"DA0ODxAREhMUFRYX","c":"SF+4Wq/GLdPnkphssVuRN+XTUj5OrLo=",'
+        '"m":"SshVQe4VrCJ5arkwIKoCIQ=="}';
+    final key = await PrivateContentStore.unlockPasswordEnvelope(
+      envelope,
+      'Тест 🔐 21',
+    );
+    addTearDown(key.destroy);
+    expect(await PrivateContentStore.decrypt(record, key), 'Старий запис');
+    await expectLater(
+      PrivateContentStore.unlockPasswordEnvelope(envelope, 'wrong password'),
+      throwsFormatException,
+    );
+  });
 
   test(
     'restores a synced entry and changes its password with the same key',

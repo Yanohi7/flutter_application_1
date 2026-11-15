@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/core/presentation/app_brand.dart';
 
 import '../../../../core/ads/ad_banner.dart';
 import '../../../../core/presentation/widgets/app_ui.dart';
@@ -10,6 +11,7 @@ import '../../../category/presentation/cubit/category_cubit.dart';
 import '../../../category/presentation/pages/category_create_page.dart';
 import '../../../category/presentation/pages/category_management_page.dart';
 import '../../../category/presentation/widgets/categories_navigation.dart';
+import '../../../cloud_sync/presentation/cloud_sync_controller.dart';
 import '../../../cloud_sync/presentation/google_account_actions.dart';
 import '../../../premium/presentation/pages/premium_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
@@ -270,6 +272,11 @@ class _HomePageState extends State<HomePage> {
     final colors = Theme.of(context).colorScheme;
     // Subscribe this page to category changes so the entry filter follows navigation
     final categoryState = context.watch<CategoryCubit>().state;
+    final loadingInitialEntries =
+        !widget.isPreview &&
+        context.select<CloudSyncController?, bool>(
+          (sync) => sync?.loadingInitialEntries ?? false,
+        );
     return BlocConsumer<EntryCubit, EntryState>(
       buildWhen: (before, after) =>
           before.status != after.status ||
@@ -302,6 +309,7 @@ class _HomePageState extends State<HomePage> {
             ? null
             : categoryState.selectedCategoryId;
         final entries = _visibleEntries(state.entries, categoryId);
+        final waitingForDrive = loadingInitialEntries && state.entries.isEmpty;
         final busy = state.isSaving || state.status == EntryStatus.loading;
         return Scaffold(
           appBar: AppBar(
@@ -323,17 +331,7 @@ class _HomePageState extends State<HomePage> {
               ),
               IconButton(
                 tooltip: AppLocalizations.of(context)!.filterSort,
-                icon: Badge(
-                  isLabelVisible:
-                      _viewOptions.sort !=
-                          AppLocalizations.of(context)!.newest ||
-                      _viewOptions.time !=
-                          AppLocalizations.of(context)!.allTime ||
-                      _viewOptions.content !=
-                          AppLocalizations.of(context)!.allTypes,
-                  backgroundColor: colors.primary,
-                  child: const Icon(Icons.swap_vert),
-                ),
+                icon: const Icon(Icons.swap_vert),
                 onPressed: _filters,
               ),
               PopupMenuButton<NoteCardSize>(
@@ -383,7 +381,7 @@ class _HomePageState extends State<HomePage> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                             child: Text(
-                              AppLocalizations.of(context)!.yourWorkspace,
+                              appName,
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                           ),
@@ -566,6 +564,16 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                   ],
+                                ),
+                              ),
+                            )
+                          else if (waitingForDrive)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  semanticsLabel: AppLocalizations.of(context)!
+                                      .loading,
                                 ),
                               ),
                             )

@@ -57,9 +57,29 @@ class CloudSyncController extends ChangeNotifier {
   bool hasGoogleWorkspace = false;
   bool hasCachedGoogleAccounts = false;
   bool guestTransferAvailable = false;
+  bool _guestTransferOffered = false;
+  bool transferringGuestEntries = false;
+  bool get guestTransferOfferPending =>
+      guestTransferAvailable && !_guestTransferOffered;
   bool initialSyncPending = false;
-  Future<List<LocalUserAccount>> localAccounts() =>
-      _database.getLocalAccounts();
+  bool _initialSyncRunning = false;
+  Timer? _initialEntriesIndicator;
+  bool get loadingInitialEntries => initialSyncPending || _initialSyncRunning;
+  final _signedOutOwners = <String>{};
+  String get _signedOutKey => '${_baseKey}_signed_out';
+
+  bool _isAvailableAccount(LocalUserAccount account) =>
+      account.isGuest ||
+      (account.googleAccountId?.trim().isNotEmpty == true &&
+          account.googleEmail?.trim().isNotEmpty == true &&
+          !_signedOutOwners.contains(account.googleAccountId));
+
+  Future<List<LocalUserAccount>> localAccounts() async =>
+      (await _database.getLocalAccounts()).where(_isAvailableAccount).toList();
+
+  String? _namespaceFor(int userId) => userId == _originalUserId
+      ? _privateNamespace
+      : [?_privateNamespace, 'account_$userId'].join('_');
   GuestWorkspaceTransfer get _transfer =>
       GuestWorkspaceTransfer(_database, activeDatabase);
 
@@ -107,7 +127,7 @@ class CloudSyncController extends ChangeNotifier {
 
   Future<void> load() async {
     final saved = await _database.initActiveUser();
-    final accounts = await localAccounts();
+    final accounts = await _database.getLocalAccounts();
     _originalUserId = accounts
         .map((account) => account.id)
         .reduce((first, next) => first < next ? first : next);
@@ -123,11 +143,17 @@ class CloudSyncController extends ChangeNotifier {
         }
       }
     }
+    _signedOutOwners.addAll(
+      await _preferences.getStringList(_signedOutKey) ?? [],
+    );
     final migratedAccounts = await localAccounts();
     hasCachedGoogleAccounts = migratedAccounts.any(
       (account) => !account.isGuest,
     );
-    final account = migratedAccounts.firstWhere((account) => account.id == id);
+    final account = migratedAccounts.firstWhere(
+      (account) => account.id == id,
+      orElse: () => migratedAccounts.firstWhere((account) => account.isGuest),
+    );
     await _activate(account, initial: true);
     _loaded = true;
     if (legacy?['owner'] != null) await _preferences.remove(_baseKey);
@@ -177,12 +203,11 @@ class CloudSyncController extends ChangeNotifier {
       });
     }
     _scheduled?.cancel();
+    _initialEntriesIndicator?.cancel();
     activeUserId = account.id;
     activeDatabase = database;
     profile = nextProfile..addListener(workspaceChanged);
-    PrivateContentStore.workspaceNamespace = account.id == _originalUserId
-        ? _privateNamespace
-        : [?_privateNamespace, 'account_${account.id}'].join('_');
+    PrivateContentStore.workspaceNamespace = _namespaceFor(account.id);
     _owner = account.googleAccountId;
     _reconnectWhenOnline = false;
     needsGoogleAccess = false;
@@ -191,10 +216,12 @@ class CloudSyncController extends ChangeNotifier {
     lastSync = DateTime.tryParse(data?['lastSync'] as String? ?? '');
     autoSync = data?['auto'] != false;
     initialSyncPending = hasGoogleWorkspace && autoSync;
+    _initialSyncRunning = false;
     _syncedGeneration = null;
     _localGeneration = 0;
     conflict = null;
     guestTransferAvailable = canTransferGuestEntries;
+    _guestTransferOffered = false;
     message = null;
     accountMessage = null;
     if (!initial) {
@@ -208,10 +235,18 @@ class CloudSyncController extends ChangeNotifier {
       _run(() async {
         if (profile.saving) return;
         final user = await _google.signIn(chooseAccount: true);
+        if (user.id.trim().isEmpty || user.email.trim().isEmpty) {
+          throw const DriveSyncException(
+            'Could not connect your Google account. Try again.',
+          );
+        }
         final local = await _database.getOrCreateGoogleAccount(
           googleAccountId: user.id,
           email: user.email,
         );
+        if (_signedOutOwners.contains(user.id)) {
+          await _saveSignedOutOwners({..._signedOutOwners}..remove(user.id));
+        }
         hasCachedGoogleAccounts = true;
         await beforeSwitch?.call();
         if (activeUserId != local.id) {
@@ -222,13 +257,45 @@ class CloudSyncController extends ChangeNotifier {
       }, accountAction: true).whenComplete(() => _scheduleAuto());
 
   Future<void> selectAccount(LocalUserAccount account) async {
-    if (account.id == activeUserId || busy || profile.saving) return;
+    if (account.id == activeUserId ||
+        busy ||
+        profile.saving ||
+        !_isAvailableAccount(account)) {
+      return;
+    }
     await _run(() async {
       await _activate(account);
       if (account.isGuest) return;
       _reconnectWhenOnline = true;
     }, accountAction: true);
     _scheduleAuto();
+  }
+
+  Future<void> signOut() => _run(() async {
+    final owner = _owner;
+    if (owner == null || profile.saving) return;
+    final guest = (await _database.getLocalAccounts()).firstWhere(
+      (account) => account.isGuest,
+    );
+    if (account == null || account?.id == owner) {
+      try {
+        await _google.signOut();
+      } catch (error) {
+        debugPrint('Could not clear the Google session: ${error.runtimeType}');
+      }
+    }
+    await _saveSignedOutOwners({..._signedOutOwners, owner});
+    hasCachedGoogleAccounts = (await localAccounts()).any(
+      (account) => !account.isGuest,
+    );
+    await _activate(guest);
+  }, accountAction: true);
+
+  Future<void> _saveSignedOutOwners(Set<String> owners) async {
+    await _preferences.setStringList(_signedOutKey, owners.toList());
+    _signedOutOwners
+      ..clear()
+      ..addAll(owners);
   }
 
   Future<bool> _online() async {
@@ -323,7 +390,28 @@ class CloudSyncController extends ChangeNotifier {
         (automatic && !_canAuto && !(_canSyncHere && _reconnectWhenOnline))) {
       return;
     }
+    final initial = initialSyncPending;
     initialSyncPending = false;
+    if (initial) {
+      _initialSyncRunning = true;
+      // Keep slow or unavailable cloud access from holding the empty workspace.
+      _initialEntriesIndicator = Timer(const Duration(seconds: 8), () {
+        _initialSyncRunning = false;
+        _notify();
+      });
+      _notify();
+    }
+    try {
+      await _syncEntries(automatic: automatic);
+    } finally {
+      if (initial) {
+        _initialEntriesIndicator?.cancel();
+        _initialSyncRunning = false;
+      }
+    }
+  }
+
+  Future<void> _syncEntries({required bool automatic}) async {
     if (!isConnected && !await _online()) {
       if (automatic) return;
       throw const DriveSyncException(
@@ -355,7 +443,10 @@ class CloudSyncController extends ChangeNotifier {
       applyDownload: (apply) async {
         if (automatic && !_canAuto) throw const _DeferredSync();
         if (!automatic &&
-            (!_foreground || !(_workspaceVisible || _profileVisible))) {
+            (!_foreground ||
+                !(_workspaceVisible ||
+                    _profileVisible ||
+                    transferringGuestEntries))) {
           throw const DriveSyncException(
             'Return to Profile or All Entries and retry the download.',
           );
@@ -387,6 +478,7 @@ class CloudSyncController extends ChangeNotifier {
       await _transfer.finish(snapshot);
     }
     guestTransferAvailable = await _transfer.isAvailable();
+    await _drive.removeSuperseded();
     message = switch (result.result) {
       WorkspaceSyncResult.empty => 'There are no entries to sync yet.',
       WorkspaceSyncResult.current => 'Entries are up to date.',
@@ -426,6 +518,7 @@ class CloudSyncController extends ChangeNotifier {
             await _transfer.finish(snapshot);
           }
           guestTransferAvailable = await _transfer.isAvailable();
+          await _drive.removeSuperseded();
           message = 'Both sets of entries are now synced. See Google Drive copies for imported entries.';
         } finally {
           applyingRemote = false;
@@ -435,36 +528,71 @@ class CloudSyncController extends ChangeNotifier {
 
   void scheduleInitialSync() => _scheduleAuto();
 
-  Future<String?> transferGuestEntries(String folderName) async {
+  void finishGuestTransferOffer() {
+    _guestTransferOffered = true;
+    _scheduleAuto();
+  }
+
+  Future<bool> guestHasPrivateEntries() => _transfer.hasPrivateEntries;
+
+  Future<String?> transferGuestEntries({
+    required GuestPrivatePassword requestPassword,
+    required String unlockPrompt,
+    required bool skipPrivate,
+  }) async {
     String? failure;
+    if (busy) return 'Could not move guest entries. Try again.';
     await _run(() async {
-      if (!hasGoogleWorkspace || !guestTransferAvailable || profile.saving) {
+      if (!hasGoogleWorkspace || profile.saving) {
+        failure = 'Could not move guest entries. Try again.';
         return;
       }
-      // Reconcile existing Drive data before adding entries from this device.
-      await _syncWorkspace(automatic: false);
-      if (!guestTransferAvailable || !isConnected) return;
-
-      var imported = false;
-      applyingRemote = true;
+      transferringGuestEntries = true;
       _notify();
       try {
-        imported = await _transfer.prepare(folderName);
-        if (imported) {
-          guestTransferAvailable = false;
-          _localGeneration++;
-          downloadedCount++;
+        // Reconcile the target, including any existing private key, before migrating.
+        final pending = await _transfer.isPending;
+        await _syncWorkspace(automatic: false);
+        if (pending) {
+          if (await _transfer.isPending) {
+            failure = 'Could not move guest entries. Try again.';
+          }
+          return;
         }
+        if (!guestTransferAvailable || !isConnected) {
+          failure = 'Could not move guest entries. Try again.';
+          return;
+        }
+        applyingRemote = true;
+        _notify();
+        final imported = await _transfer.prepare(
+          guestNamespace: _namespaceFor(await _database.guestUserId()),
+          requestPassword: requestPassword,
+          unlockPrompt: unlockPrompt,
+          skipPrivate: skipPrivate,
+        );
+        if (!imported) return;
+        guestTransferAvailable = false;
+        _localGeneration++;
+        downloadedCount++;
+        applyingRemote = false;
+        await _syncWorkspace(automatic: false);
+        if (await _transfer.isPending) {
+          failure = 'Could not move guest entries. Try again.';
+        }
+      } on PrivateMergeCanceled {
+        failure = 'Guest transfer canceled.';
       } finally {
         applyingRemote = false;
+        transferringGuestEntries = false;
       }
-      if (imported) await _syncWorkspace(automatic: false);
     }, onError: (error) => failure = error);
     return failure;
   }
 
   void _scheduleAuto() {
     _scheduled?.cancel();
+    if (guestTransferOfferPending) return;
     if (!_canAuto && !(_canSyncHere && _reconnectWhenOnline)) return;
     final immediate = !busy && (initialSyncPending || _reconnectWhenOnline);
     _scheduled = Timer(
@@ -527,6 +655,21 @@ class CloudSyncController extends ChangeNotifier {
       }
     } on TimeoutException {
       errorMessage = 'Google took too long to respond. Try again.';
+    } on PrivateRecoveryFailure catch (failure) {
+      errorMessage = switch (failure) {
+        PrivateRecoveryFailure.noScreenLock =>
+          'Set up a screen lock in your phone settings.',
+        PrivateRecoveryFailure.missingKey =>
+          'Device recovery is not set up for these entries.',
+        PrivateRecoveryFailure.unreadableKey =>
+          'Could not open the protected key on this device.',
+        PrivateRecoveryFailure.setup =>
+          'Could not set up system unlock on this device.',
+        PrivateRecoveryFailure.prompt =>
+          'Could not verify your screen lock. Try again.',
+        PrivateRecoveryFailure.busy =>
+          'System verification is already in progress.',
+      };
     } on http.ClientException {
       errorMessage = 'Check your internet connection and try again.';
     } on StateError catch (error) {
@@ -559,6 +702,7 @@ class CloudSyncController extends ChangeNotifier {
     PrivateContentStore.passwordRevision.removeListener(workspaceChanged);
     _scheduled?.cancel();
     _poll.cancel();
+    _initialEntriesIndicator?.cancel();
     _lifecycle.dispose();
     _drive.close();
     _google.close();

@@ -760,7 +760,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get openSettings => 'Abrir ajustes';
 
   @override
-  String get usePrivateInformation => 'Usar información privada';
+  String get privateInformationSaved =>
+      'La información privada se guardó en el borrador.';
 
   @override
   String get discardPrivateChanges => '¿Descartar los cambios privados?';
@@ -784,13 +785,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get endPremiumPreview => 'Finalizar vista previa de Premium';
 
   @override
-  String get captureYourIdeas => 'Captura tus ideas';
+  String get onboardingCaptureTitle => 'Anote lo que importa';
 
   @override
-  String get giveEverythingAPlace => 'Dale un lugar a cada idea';
+  String get onboardingOrganizeTitle => 'Organice sus entradas';
 
   @override
-  String get takeYourEntriesWithYou => 'Lleva tus entradas contigo';
+  String get onboardingPrivacyTitle => 'Proteja su información privada';
+
+  @override
+  String get takeYourEntriesWithYou => 'Lleve sus entradas consigo';
 
   @override
   String get startUsingEntries => 'Empezar a usar Entries';
@@ -830,18 +834,27 @@ class AppLocalizationsEs extends AppLocalizations {
       'No se pudieron guardar los ajustes. Inténtalo de nuevo.';
 
   @override
-  String
-  get startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt =>
-      'Empieza con una idea. Añade una lista, una foto o una grabación de voz cuando la necesites.';
+  String get onboardingCaptureDescription =>
+      'Pensamientos, ideas, recuerdos, recetas, planes y todo lo que quiera guardar. Adjunte fotos, audios, vídeos y documentos a sus entradas.';
+
+  @override
+  String get onboardingPrivacyDescription =>
+      'Guarde contraseñas y textos personales en un bloque protegido de su entrada. Ábralo con la contraseña de EntryNote, la biometría o el código del dispositivo.';
+
+  @override
+  String get onboardingWorkCategory => 'Trabajo';
+
+  @override
+  String get onboardingPersonalCategory => 'Personal';
 
   @override
   String get groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch =>
-      'Agrupa entradas en categorías, fija lo importante y encuéntralo con la búsqueda.';
+      'Agrupe sus entradas por categorías, fije las más importantes y encuentre lo que necesite con la búsqueda.';
 
   @override
   String
   get signInWithGoogleToSyncEntriesCategoriesAndAttachmentsAcrossYourDevicesYouCanAlwaysWorkOffline =>
-      'Inicia sesión con Google para sincronizar entradas, categorías y adjuntos entre tus dispositivos. También puedes trabajar sin conexión.';
+      'Inicie sesión con Google para sincronizar sus entradas, categorías y archivos adjuntos entre dispositivos. También puede trabajar sin conexión.';
 
   @override
   String get noEntriesMatchYourSearchAndFiltersInThisView =>
@@ -861,7 +874,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Aquí aparecen las entradas asignadas a esta categoría. Las subcategorías tienen sus propias entradas.';
 
   @override
-  String get keepTheFocusOnYourNotes => 'Concéntrate en tus notas';
+  String get keepTheFocusOnYourNotes => 'Concéntrese en sus entradas';
 
   @override
   String get makeSpaceForYourIdeas => 'Haz espacio para tus ideas';
@@ -889,6 +902,42 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get purchasesAreNotAvailableYet =>
       'Las compras aún no están disponibles.';
+
+  @override
+  String premiumBuyForPrice(String price) {
+    return 'Comprar Premium por $price';
+  }
+
+  @override
+  String get restorePurchases => 'Restaurar compras';
+
+  @override
+  String get premiumPurchaseActive => 'Premium está activo.';
+
+  @override
+  String get premiumPurchaseCanceled => 'Compra cancelada.';
+
+  @override
+  String get premiumPurchasesRestored => 'Compras de Premium restauradas.';
+
+  @override
+  String get premiumPurchaseFailed =>
+      'No se pudo completar la compra. Inténtelo de nuevo.';
+
+  @override
+  String get premiumRestoreFailed =>
+      'No se pudieron restaurar las compras. Inténtelo de nuevo.';
+
+  @override
+  String get premiumPurchasePending => 'El pago está pendiente.';
+
+  @override
+  String get premiumPurchaseUnconfirmed =>
+      'Aún no se ha confirmado el acceso a Premium.';
+
+  @override
+  String get premiumNoPurchaseToRestore =>
+      'No hay compras de Premium para restaurar.';
 
   @override
   String get freePreviewNoPaymentRequired => 'Vista previa gratuita, sin pago.';
@@ -1066,6 +1115,86 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get couldNotConnectGoogle =>
       'No se pudo conectar tu cuenta de Google. Inténtalo de nuevo.';
+
+  @override
+  String get googleSignInCanceledOrDenied =>
+      'Se canceló el inicio de sesión con Google o se denegó el acceso.';
+
+  @override
+  String get googleSignInBrowserFailed =>
+      'No se pudo abrir el navegador para iniciar sesión con Google. Vuelva a intentarlo.';
+
+  @override
+  String get couldNotReadGoogleAccount =>
+      'No se pudieron obtener los datos de su cuenta de Google. Vuelva a conectarla e inténtelo de nuevo.';
+
+  @override
+  String get googleSignInRequired =>
+      'Inicie sesión con Google para sincronizar sus entradas.';
+
+  @override
+  String get googleDriveAccessExpired =>
+      'El acceso a Google Drive ha caducado. Vuelva a conectar su cuenta de Google.';
+
+  @override
+  String get googleDrivePermissionRequired =>
+      'Vuelva a conectar su cuenta de Google y permita el acceso a Google Drive para sincronizar sus entradas.';
+
+  @override
+  String get googleDriveAccessDenied =>
+      'Google Drive denegó el acceso. Revise los permisos y vuelva a intentarlo.';
+
+  @override
+  String get googleDriveTemporarilyUnavailable =>
+      'Google Drive no está disponible temporalmente. Vuelva a intentarlo en unos momentos.';
+
+  @override
+  String get googleDriveBackupMissing =>
+      'No se encontró la copia de seguridad anterior en Google Drive. Sus entradas siguen en este dispositivo.';
+
+  @override
+  String get googleDriveBackupVerificationFailed =>
+      'No se pudo verificar la copia de seguridad de Google Drive. Sus entradas están a salvo en este dispositivo.';
+
+  @override
+  String get googleDriveBackupUnreadable =>
+      'No se pudo leer un archivo de copia de seguridad en Google Drive.';
+
+  @override
+  String get googleDriveBackupKeyMissing =>
+      'En la copia de seguridad falta la clave necesaria para abrir las entradas privadas.';
+
+  @override
+  String get googleDriveUploadFailed =>
+      'No se pudieron subir sus entradas a Google Drive. Vuelva a intentarlo.';
+
+  @override
+  String get googleDriveDownloadRetry =>
+      'Vuelva al perfil o a la lista de todas las entradas y vuelva a sincronizar.';
+
+  @override
+  String get googleDriveVersionsChanged =>
+      'Algunas entradas cambiaron durante la sincronización. Vuelva a sincronizar para ver las últimas versiones.';
+
+  @override
+  String get googleDriveTooManyVersions =>
+      'Hay demasiadas versiones de sus entradas en Google Drive para combinarlas de forma segura.';
+
+  @override
+  String get googleDriveIncompatibleVersion =>
+      'No se pudo combinar esta versión de la copia de seguridad con sus entradas.';
+
+  @override
+  String get googleDriveWorkspaceNotEmpty =>
+      'No se pudo restaurar la copia de seguridad porque este perfil ya contiene datos locales.';
+
+  @override
+  String get googleDriveDifferentPrivatePasswords =>
+      'Las entradas privadas de estas copias tienen protecciones distintas. Abra cada copia con su contraseña para combinarlas.';
+
+  @override
+  String get googleDrivePrivatePasswordRequired =>
+      'Configure una contraseña privada antes de sincronizar las entradas privadas.';
 
   @override
   String get googleTimeout =>
@@ -1405,12 +1534,40 @@ class AppLocalizationsEs extends AppLocalizations {
   String get editProfileName => 'Editar nombre';
 
   @override
+  String get moveWithoutPrivateEntries => 'Mover sin entradas privadas';
+
+  @override
+  String get createTargetPrivatePassword =>
+      'Crea una contraseña privada para esta cuenta';
+
+  @override
+  String get privateEntriesStayInGuest =>
+      'También puedes dejar las entradas privadas y sus archivos adjuntos en el perfil de invitado.';
+
+  @override
   String get moveGuestEntries => 'Mover entradas de invitado';
 
   @override
   String moveGuestEntriesDescription(String email) {
-    return '¿Mover las entradas de invitado de este dispositivo a $email? Las entradas con información privada se quedan en el perfil de invitado.';
+    return '¿Mover las entradas de invitado de este dispositivo a $email, junto con su información privada y sus archivos adjuntos?';
   }
+
+  @override
+  String get generalCategory => 'General';
+
+  @override
+  String get movingGuestEntries => 'Moviendo entradas…';
+
+  @override
+  String get guestPrivatePassword => 'Contraseña privada del invitado';
+
+  @override
+  String get couldNotMoveGuestEntries =>
+      'No se pudieron mover las entradas de invitado. Inténtelo de nuevo.';
+
+  @override
+  String get setGuestPrivatePasswordBeforeTransfer =>
+      'Configure una contraseña privada en el perfil de invitado para mover las entradas privadas.';
 
   @override
   String get entriesFromThisDevice => 'Entradas de este dispositivo';
@@ -1433,6 +1590,18 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get screenLockNeedsPriorUnlock =>
       'El bloqueo de pantalla no puede abrir estas entradas en este teléfono. Prueba en un dispositivo donde ya las hayas abierto o usa tu contraseña privada.';
+
+  @override
+  String get privateRecoverySetupFailed =>
+      'No se pudo configurar el desbloqueo del sistema. Vuelva a intentarlo con su contraseña privada.';
+
+  @override
+  String get privateRecoveryKeyAccessFailed =>
+      'No se pudo abrir la clave protegida en este dispositivo. Vuelva a intentar el desbloqueo del sistema o use su contraseña privada.';
+
+  @override
+  String get privateRecoveryBusy =>
+      'La verificación del sistema ya está en curso. Complétela y vuelva a intentarlo.';
 
   @override
   String get couldNotVerifyScreenLock =>

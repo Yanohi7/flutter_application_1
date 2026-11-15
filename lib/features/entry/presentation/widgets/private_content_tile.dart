@@ -3,43 +3,18 @@
 import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
-import '../pages/private_content_page.dart';
-
 class PrivateContentTile extends StatelessWidget {
-  const PrivateContentTile({
-    super.key,
-    required this.payload,
-    this.onChanged,
-    this.isEnabled = true,
-  });
-  final String payload;
-  final ValueChanged<String>? onChanged;
-  final bool isEnabled;
+  const PrivateContentTile({super.key, required this.onTap});
+
+  final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Card(
     child: ListTile(
       leading: const Icon(Icons.lock_outline_rounded),
       title: Text(AppLocalizations.of(context)!.privateInformation),
-      subtitle: Text(
-        payload.isEmpty
-            ? AppLocalizations.of(context)!.passwordsAndSensitiveText
-            : AppLocalizations.of(context)!.unlockToView,
-      ),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: !isEnabled
-          ? null
-          : () async {
-              final result = await Navigator.push<String>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PrivateContentPage(
-                    payload: payload,
-                    isEditable: onChanged != null,
-                  ),
-                ),
-              );
-              if (context.mounted && result != null) onChanged?.call(result);
-            },
+      subtitle: Text(AppLocalizations.of(context)!.unlockToView),
+      trailing: const Icon(Icons.expand_more, size: 20),
+      onTap: onTap,
     ),
   );
 }

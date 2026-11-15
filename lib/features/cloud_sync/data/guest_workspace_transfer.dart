@@ -1,12 +1,25 @@
 import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/database/database_helper.dart';
+import '../../../core/security/private_content_store.dart';
 import '../../entry/data/datasources/entry_photo_storage.dart';
+import 'datasources/drive_workspace_store.dart';
 import 'local_workspace_snapshot.dart';
 import 'workspace_merge.dart';
+import 'workspace_sync.dart' show PrivateMergeCanceled;
+
+typedef GuestPrivatePassword =
+    Future<({String? password, bool useDevice})?> Function({
+      required bool guest,
+      required bool creating,
+      required bool allowDevice,
+    });
+
+const guestTransferFolderName = 'Entries from this device';
 
 class GuestWorkspaceTransfer {
   const GuestWorkspaceTransfer(this._database, this._target);
@@ -26,63 +39,168 @@ class GuestWorkspaceTransfer {
       '''
       SELECT 1 FROM entries JOIN categories ON entries.category_id = categories.id
       WHERE categories.user_id = ? AND categories.is_deleted = 0
-        AND entries.is_deleted = 0 AND entries.private_content = ''
+        AND entries.is_deleted = 0
       UNION ALL
       SELECT 1 FROM categories WHERE user_id = ? AND is_deleted = 0 AND is_default = 0
-      AND NOT EXISTS (
-        SELECT 1 FROM entries JOIN categories ON entries.category_id = categories.id
-        WHERE categories.user_id = ? AND categories.is_deleted = 0
-          AND entries.is_deleted = 0 AND entries.private_content != ''
-      )
       LIMIT 1
     ''',
-      [guest.userId, guest.userId, guest.userId],
+      [guest.userId, guest.userId],
     )).isNotEmpty;
   }
 
-  Future<bool> prepare(String folderName) async {
+  Future<bool> get hasPrivateEntries async {
+    final guest = await _guest();
+    final db = await _database.database;
+    return (await db.rawQuery(
+      '''
+      SELECT 1 FROM entries JOIN categories ON entries.category_id = categories.id
+      WHERE categories.user_id = ? AND categories.is_deleted = 0
+        AND entries.is_deleted = 0 AND entries.private_content != ''
+      LIMIT 1
+      ''',
+      [guest.userId],
+    )).isNotEmpty;
+  }
+
+  Future<bool> prepare({
+    required String? guestNamespace,
+    required GuestPrivatePassword requestPassword,
+    required String unlockPrompt,
+    required bool skipPrivate,
+  }) async {
     if (!await isAvailable()) return false;
     final guest = await _guest();
     final local = LocalWorkspaceSnapshot(_target);
-    final guestContent = await LocalWorkspaceSnapshot(guest).export();
+    final guestSnapshot = LocalWorkspaceSnapshot(guest);
+    final guestContent = await guestSnapshot.export();
     final targetContent = await local.export();
     final guestData = jsonDecode(guestContent) as Map<String, dynamic>;
-    final categories = (guestData['categories'] as List)
-        .where((category) => category['is_deleted'] == 0)
-        .map((category) => category['id'])
-        .toSet();
-    final entries = (guestData['entries'] as List)
-        .cast<Map<String, dynamic>>()
-        .where(
-          (entry) =>
-              entry['private_content'] == '' &&
-              entry['is_deleted'] == 0 &&
-              categories.contains(entry['category_id']),
-        )
-        .toList();
-    final ids = entries.map((entry) => entry['id']).toSet();
     final categoryRows = (guestData['categories'] as List)
         .cast<Map<String, dynamic>>();
-    final byId = {
-      for (final category in categoryRows) category['id']: category,
+    final categories = {
+      for (final category in categoryRows)
+        if (category['is_deleted'] == 0) category['id']: category,
     };
-    final importCategories = <Object?>{};
-    final hasPrivateEntries = (guestData['entries'] as List).any(
-      (entry) => entry['private_content'] != '',
-    );
-    if (hasPrivateEntries) {
+    final allGuestEntries = (guestData['entries'] as List)
+        .cast<Map<String, dynamic>>();
+    final entries = allGuestEntries
+        .where(
+          (entry) =>
+              entry['is_deleted'] == 0 &&
+              categories.containsKey(entry['category_id']) &&
+              (!skipPrivate || entry['private_content'] == ''),
+        )
+        .map(Map<String, dynamic>.of)
+        .toList();
+    final ids = entries.map((entry) => entry['id']).toSet();
+    final guestCategories = <Object?>{};
+    if (skipPrivate) {
       for (final entry in entries) {
-        var category = entry['category_id'];
-        while (category != null && importCategories.add(category)) {
-          category = byId[category]?['parent_id'];
+        var id = entry['category_id'];
+        while (id != null && guestCategories.add(id)) {
+          id = categories[id]?['parent_id'];
         }
       }
+      if (entries.isEmpty) return false;
     }
-    final guestPublic = jsonEncode({
+    String? envelopeToImport;
+    String? rotatedGuestEnvelope;
+    var confirmedGuest = guestContent;
+    if (entries.any((entry) => entry['private_content'] != '')) {
+      if (PrivateContentStore.supportsBiometrics &&
+          !await PrivateContentStore.hasScreenLock()) {
+        throw const DriveSyncException(
+          'Set up a screen lock in your phone settings.',
+        );
+      }
+      final sourceEnvelope =
+          await PrivateContentStore.readPasswordEnvelopeForWorkspace(
+            guestNamespace,
+            userId: guest.userId,
+          );
+      if (sourceEnvelope == null) {
+        throw const DriveSyncException(
+          'Set a private password in Guest before moving private entries.',
+        );
+      }
+      final targetEnvelope =
+          await PrivateContentStore.readSyncPasswordEnvelope();
+      final source = await _unlock(
+        sourceEnvelope,
+        requestPassword,
+        namespace: guestNamespace,
+        userId: guest.userId,
+        guest: true,
+        unlockPrompt: unlockPrompt,
+      );
+      try {
+        final SecretKey targetKey;
+        if (targetEnvelope == null) {
+          final password = await _newPassword(requestPassword, guest: false);
+          targetKey = await PrivateContentStore.cipher.newSecretKey();
+          try {
+            envelopeToImport = await PrivateContentStore.createPasswordEnvelope(
+              targetKey,
+              password,
+            );
+            await PrivateContentStore.prepareDeviceRecovery(targetKey);
+          } catch (_) {
+            targetKey.destroy();
+            rethrow;
+          }
+        } else {
+          targetKey = (await _unlock(
+            targetEnvelope,
+            requestPassword,
+            guest: false,
+            unlockPrompt: unlockPrompt,
+          )).key;
+        }
+        try {
+          if (await PrivateContentStore.keysMatch(source.key, targetKey)) {
+            // Rotate the legacy Guest key and its ciphertext in one database commit.
+            final password =
+                source.password ??
+                await _newPassword(requestPassword, guest: true);
+            final replacement = await PrivateContentStore.cipher.newSecretKey();
+            try {
+              rotatedGuestEnvelope =
+                  await PrivateContentStore.createPasswordEnvelope(
+                    replacement,
+                    password,
+                  );
+              await PrivateContentStore.prepareWorkspaceDeviceRecovery(
+                replacement,
+                guestNamespace,
+              );
+              await reencryptWorkspacePrivateEntries(
+                allGuestEntries,
+                source.key,
+                replacement,
+              );
+              confirmedGuest = jsonEncode(guestData);
+            } finally {
+              replacement.destroy();
+            }
+          }
+          await reencryptWorkspacePrivateEntries(
+            entries,
+            source.key,
+            targetKey,
+          );
+        } finally {
+          targetKey.destroy();
+        }
+      } finally {
+        source.key.destroy();
+      }
+    }
+    final source = await _entryDigests(confirmedGuest);
+    final guestImport = jsonEncode({
       ...guestData,
-      if (hasPrivateEntries)
+      if (skipPrivate)
         'categories': categoryRows
-            .where((category) => importCategories.contains(category['id']))
+            .where((row) => guestCategories.contains(row['id']))
             .toList(),
       'entries': entries,
       'attachments': (guestData['attachments'] as List)
@@ -90,20 +208,19 @@ class GuestWorkspaceTransfer {
           .toList(),
     });
     final merged = mergeWorkspaceCopies(targetContent, [
-      guestPublic,
-    ], importFolder: folderName);
+      guestImport,
+    ], importFolder: guestTransferFolderName);
     if (merged == targetContent) return false;
-    final fingerprint = await _fingerprint(guestContent);
+    final fingerprint = await _fingerprint(confirmedGuest);
     final destination = await _entryDigests(merged);
     final original = await _entryDigests(targetContent);
     final copiedIds = destination.keys
         .where((id) => !original.containsKey(id))
         .toList();
-    final source = await _entryDigests(guestPublic);
     final copiedEntries = {
-      for (final (index, id) in source.keys.indexed)
-        id: {
-          'source': source[id],
+      for (final (index, entry) in entries.indexed)
+        '${entry['id']}': {
+          'source': source['${entry['id']}'],
           'destinationId': copiedIds[index],
           'destination': destination[copiedIds[index]],
         },
@@ -117,6 +234,20 @@ class GuestWorkspaceTransfer {
       storageRoot: await getApplicationSupportDirectory(),
       replaceExpected: targetContent,
       afterRestore: (txn) async {
+        if (rotatedGuestEnvelope case final envelope?) {
+          await guestSnapshot.rewritePrivateEntries(
+            txn,
+            guestContent,
+            allGuestEntries.where(
+              (row) => row['is_deleted'] == 0 && row['private_content'] != '',
+            ),
+          );
+          await PrivateContentStore.writeWorkspaceEnvelope(
+            txn,
+            guest.userId!,
+            envelope,
+          );
+        }
         await txn.insert('guest_transfer', {
           'id': 1,
           'guest_id': guest.userId,
@@ -125,11 +256,82 @@ class GuestWorkspaceTransfer {
             'snapshot': fingerprint,
             'entries': copiedEntries,
             'categories': copiedCategories,
+            'partial': skipPrivate,
           }),
         });
+        if (envelopeToImport case final envelope?) {
+          await PrivateContentStore.writeWorkspaceEnvelope(
+            txn,
+            _target.userId!,
+            envelope,
+          );
+        }
       },
     );
     return true;
+  }
+
+  Future<String> _newPassword(
+    GuestPrivatePassword requestPassword, {
+    required bool guest,
+  }) async {
+    final response = await requestPassword(
+      guest: guest,
+      creating: true,
+      allowDevice: false,
+    );
+    if (response?.password case final password?) return password;
+    throw const PrivateMergeCanceled();
+  }
+
+  Future<({SecretKeyData key, String? password})> _unlock(
+    String envelope,
+    GuestPrivatePassword requestPassword, {
+    required bool guest,
+    required String unlockPrompt,
+    String? namespace,
+    int? userId,
+  }) async {
+    final response = await requestPassword(
+      guest: guest,
+      creating: false,
+      allowDevice: await PrivateContentStore.hasDeviceRecovery(
+        namespace: namespace,
+        userId: userId,
+      ),
+    );
+    if (response == null) throw const PrivateMergeCanceled();
+    if (response.useDevice) {
+      try {
+        final key = await PrivateContentStore.unlockWithDeviceRecovery(
+          prompt: unlockPrompt,
+          namespace: namespace,
+          userId: userId,
+        );
+        if (key == null) throw const PrivateMergeCanceled();
+        return (key: key, password: null);
+      } on FormatException {
+        throw const DriveSyncException(
+          'Could not verify your screen lock. Try again.',
+        );
+      } on PlatformException {
+        throw const DriveSyncException(
+          'Could not verify your screen lock. Try again.',
+        );
+      }
+    }
+    final password = response.password!;
+    try {
+      return (
+        key: await PrivateContentStore.unlockPasswordEnvelope(
+          envelope,
+          password,
+        ),
+        password: password,
+      );
+    } on FormatException {
+      throw const DriveSyncException('Incorrect private password.');
+    }
   }
 
   Future<bool> get isPending async {
@@ -171,6 +373,7 @@ class GuestWorkspaceTransfer {
       snapshot,
       unchanged,
       removeCategories:
+          manifest['partial'] != true &&
           unchanged.length == previous.length &&
           (manifest['categories'] as List).every(liveCategories.contains) &&
           await _fingerprint(snapshot) == manifest['snapshot'],

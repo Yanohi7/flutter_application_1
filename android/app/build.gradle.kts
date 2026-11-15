@@ -1,5 +1,6 @@
 import java.util.Base64
 import java.util.Properties
+import groovy.json.JsonSlurper
 
 plugins {
     id("com.android.application")
@@ -12,6 +13,23 @@ val entriesDartDefines = providers.gradleProperty("dart-defines").orNull.orEmpty
     .filter { it.isNotEmpty() }
     .map { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }
     .associate { it.substringBefore("=") to it.substringAfter("=", "") }
+
+val localAdMobConfiguration = providers.fileContents(
+    rootProject.layout.projectDirectory.file("../entrynote.release.local.json")
+).asText.orNull?.let { JsonSlurper().parseText(it) as? Map<*, *> }
+
+fun androidAdMobValue(key: String, pattern: Regex): String? =
+    (entriesDartDefines[key] ?: localAdMobConfiguration?.get(key) as? String)
+        ?.takeIf(pattern::matches)
+
+val testAdMobAppId = "ca-app-pub-3940256099942544~3347511713"
+val liveAdsOverride = entriesDartDefines["ENTRIES_ADMOB_LIVE"]?.toBooleanStrictOrNull()
+val adMobAppId = androidAdMobValue(
+    "ENTRIES_ADMOB_ANDROID_APP_ID", Regex("ca-app-pub-[0-9]+~[0-9]+")
+) ?: testAdMobAppId
+val adMobUnitId = Regex("ca-app-pub-[0-9]+/[0-9]+")
+val adMobBanner = androidAdMobValue("ENTRIES_ADMOB_ANDROID_BANNER_ID", adMobUnitId)
+val adMobRewarded = androidAdMobValue("ENTRIES_ADMOB_ANDROID_REWARDED_ID", adMobUnitId)
 
 val releaseProperties = Properties()
 val releasePropertiesFile = rootProject.file(
@@ -40,11 +58,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         manifestPlaceholders["entriesAdMobAppId"] =
-            entriesDartDefines["ENTRIES_ADMOB_ANDROID_APP_ID"]
-                ?.takeIf { Regex("ca-app-pub-[0-9]+~[0-9]+").matches(it) }
-                ?: "ca-app-pub-3940256099942544~3347511713"
+            if (liveAdsOverride == false) testAdMobAppId else adMobAppId
+        buildConfigField("String", "ADMOB_APP_ID", "\"$adMobAppId\"")
+        buildConfigField("String", "ADMOB_BANNER_ID", "\"${adMobBanner.orEmpty()}\"")
+        buildConfigField("String", "ADMOB_REWARDED_ID", "\"${adMobRewarded.orEmpty()}\"")
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.flutter_application_1"
         // You can update the following values to match your application needs.
@@ -71,6 +94,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (liveAdsOverride != true) {
+                manifestPlaceholders["entriesAdMobAppId"] = testAdMobAppId
+            }
+        }
         release {
             signingConfig = signingConfigs.findByName("release")
         }

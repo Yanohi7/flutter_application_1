@@ -1,6 +1,6 @@
 {
-    "name": "Entries",
-    "short_name": "Entries",
+    "name": "EntryNote",
+    "short_name": "EntryNote",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#131E2E",

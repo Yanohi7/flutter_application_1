@@ -22,6 +22,7 @@ class CloudSyncHome extends StatefulWidget {
 
 class _CloudSyncHomeState extends State<CloudSyncHome> {
   CloudSyncController? _sync;
+  ModalRoute<dynamic>? _route;
   int? _userId;
   int _downloads = 0;
   bool _guestTransferOffered = false;
@@ -29,6 +30,7 @@ class _CloudSyncHomeState extends State<CloudSyncHome> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _route = ModalRoute.of(context);
     final sync = context.read<CloudSyncController?>();
     if (!identical(sync, _sync)) {
       _sync?.removeListener(_onSyncChanged);
@@ -48,7 +50,9 @@ class _CloudSyncHomeState extends State<CloudSyncHome> {
     if (sync.downloadedCount == _downloads) return;
     _downloads = sync.downloadedCount;
     unawaited(context.read<CategoryCubit>().loadCategories());
-    unawaited(context.read<EntryCubit>().loadEntries());
+    unawaited(
+      context.read<EntryCubit>().loadEntries(refreshAfterCurrent: true),
+    );
     final profile = context.read<ProfileStore?>();
     if (profile != null) {
       unawaited(
@@ -62,20 +66,18 @@ class _CloudSyncHomeState extends State<CloudSyncHome> {
   }
 
   void _scheduleGuestTransferOffer(CloudSyncController sync) {
-    if (!sync.guestTransferAvailable ||
-        sync.initialSyncPending ||
+    if (!sync.guestTransferOfferPending ||
         sync.busy ||
         _guestTransferOffered ||
-        ModalRoute.isCurrentOf(context) == false) {
+        _route?.isCurrent == false) {
       return;
     }
     _guestTransferOffered = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || sync.activeUserId != _userId) return;
       if (sync.busy ||
-          sync.initialSyncPending ||
-          !sync.guestTransferAvailable ||
-          ModalRoute.isCurrentOf(context) == false) {
+          !sync.guestTransferOfferPending ||
+          _route?.isCurrent == false) {
         _guestTransferOffered = false;
         return;
       }

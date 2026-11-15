@@ -49,6 +49,13 @@ class LocalWorkspaceSnapshot {
     'mime_type',
     'created_at',
   ];
+  static const _attachmentDeletionColumns = [
+    'id',
+    'entry_id',
+    'file_type',
+    'created_at',
+    'deleted_at',
+  ];
 
   Future<String> export() async => (await exportForSync()).content;
 
@@ -94,11 +101,12 @@ class LocalWorkspaceSnapshot {
     final attachments = await txn.rawQuery(
       '''
         SELECT media_attachments.id, entry_id, file_type, file_name,
-          display_name, local_path, mime_type, media_attachments.created_at, media_attachments.sync_id
+          display_name, local_path, mime_type, media_attachments.created_at,
+          media_attachments.sync_id, media_attachments.is_deleted, media_attachments.deleted_at
         FROM media_attachments JOIN entries
           ON media_attachments.entry_id = entries.id
         JOIN categories ON entries.category_id = categories.id
-        WHERE categories.user_id = ? AND media_attachments.is_deleted = 0
+        WHERE categories.user_id = ?
           AND entries.is_deleted = 0 AND categories.is_deleted = 0
         ORDER BY media_attachments.id
       ''',
@@ -129,14 +137,14 @@ class LocalWorkspaceSnapshot {
       ),
       attachments: _portableRows(
         attachments,
-        [..._attachmentColumns, 'local_path'],
+        [..._attachmentColumns, 'local_path', 'is_deleted', 'deleted_at'],
         attachmentIds,
         'entry_id',
         entryIds,
       ),
     );
     final hasMedia =
-        attachments.isNotEmpty ||
+        attachments.any((row) => row['is_deleted'] == 0) ||
         profileRow?['avatar_image'] != null ||
         profileRow?['avatar_original_path'] != null;
     final content =
@@ -147,7 +155,9 @@ class LocalWorkspaceSnapshot {
         : await _encode(input);
     return (
       content: content,
-      hasPrivate: entries.any((row) => row['private_content'] != ''),
+      hasPrivate: entries.any(
+        (row) => row['is_deleted'] == 0 && row['private_content'] != '',
+      ),
       isEmpty:
           entries.isEmpty &&
           categories.length == 1 &&
@@ -236,9 +246,23 @@ class LocalWorkspaceSnapshot {
             : base64Encode(await original.readAsBytes()),
       },
       'categories': input.categories,
-      'entries': input.entries,
+      'entries': [
+        for (final entry in input.entries)
+          entry['is_deleted'] == 0
+              ? entry
+              : {
+                  ...entry,
+                  'title': '',
+                  'content': '',
+                  'private_content': '',
+                  'is_pinned': 0,
+                  'is_favorite': 0,
+                },
+      ],
       'attachments': [
-        for (final attachment in input.attachments)
+        for (final attachment in input.attachments.where(
+          (row) => row['is_deleted'] == 0,
+        ))
           {
             for (final column in _attachmentColumns) column: attachment[column],
             'bytes': base64Encode(
@@ -246,6 +270,16 @@ class LocalWorkspaceSnapshot {
             ),
           },
       ],
+      if (input.attachments.any((row) => row['is_deleted'] == 1))
+        'attachmentDeletions': [
+          for (final attachment in input.attachments.where(
+            (row) => row['is_deleted'] == 1,
+          ))
+            {
+              for (final column in _attachmentDeletionColumns)
+                column: attachment[column],
+            },
+        ],
     });
   }
 
@@ -270,6 +304,9 @@ class LocalWorkspaceSnapshot {
       ..._attachmentColumns,
       'bytes',
     ]);
+    final attachmentDeletions = data.containsKey('attachmentDeletions')
+        ? _rows(data, 'attachmentDeletions', _attachmentDeletionColumns)
+        : const <Map<String, Object?>>[];
     if (categories
             .where((row) => row['is_default'] == 1 && row['is_deleted'] == 0)
             .length !=
@@ -309,7 +346,7 @@ class LocalWorkspaceSnapshot {
             FROM media_attachments
             JOIN entries ON media_attachments.entry_id = entries.id
             JOIN categories ON entries.category_id = categories.id
-            WHERE categories.user_id = ?
+            WHERE categories.user_id = ? AND media_attachments.local_path != ''
           ''',
             [userId],
           );
@@ -405,6 +442,17 @@ class LocalWorkspaceSnapshot {
             'file_size': bytes.length,
           });
         }
+        for (final row in attachmentDeletions) {
+          final portable = row.remove('id');
+          await txn.insert('media_attachments', {
+            ...row,
+            'sync_id': portable,
+            'entry_id': entryIds[row['entry_id']]!,
+            'file_name': '',
+            'local_path': '',
+            'is_deleted': 1,
+          });
+        }
         String? originalPath;
         if (avatar != null && original != null) {
           originalPath = await ProfileStore.writeOriginal(
@@ -456,6 +504,29 @@ class LocalWorkspaceSnapshot {
 
   static Object? _decode(String snapshot) => jsonDecode(snapshot);
 
+  Future<void> rewritePrivateEntries(
+    Transaction transaction,
+    String expected,
+    Iterable<Map<String, dynamic>> entries,
+  ) async {
+    if ((await _snapshot(transaction)).content != expected) {
+      throw StateError(
+        'The guest workspace changed during transfer. Both copies are safe.',
+      );
+    }
+    final user = await _userId(transaction);
+    final batch = transaction.batch();
+    for (final entry in entries) {
+      batch.update(
+        'entries',
+        {'private_content': entry['private_content']},
+        where: 'sync_id = ? AND is_deleted = 0 AND category_id IN (SELECT id FROM categories WHERE user_id = ?)',
+        whereArgs: [entry['id'], user],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
   Future<List<Map<String, Object?>>> removeTransferredEntries(
     String expected,
     Set<int> transferred, {
@@ -475,7 +546,7 @@ class LocalWorkspaceSnapshot {
         '''
         SELECT entries.id, entries.sync_id, entries.is_deleted
         FROM entries JOIN categories ON entries.category_id = categories.id
-        WHERE categories.user_id = ? AND entries.private_content = ''
+        WHERE categories.user_id = ?
       ''',
         [user],
       );
@@ -490,7 +561,7 @@ class LocalWorkspaceSnapshot {
           await txn.query(
             'media_attachments',
             columns: ['local_path', 'file_type'],
-            where: 'entry_id = ?',
+            where: "entry_id = ? AND local_path != ''",
             whereArgs: [entry['id']],
           ),
         );
@@ -498,7 +569,7 @@ class LocalWorkspaceSnapshot {
         hasDeletions = true;
       }
       if (hasDeletions) await deletions.commit(noResult: true);
-      if (removeCategories && !current.hasPrivate) {
+      if (removeCategories) {
         await txn.rawDelete(
           '''
           DELETE FROM categories

@@ -47,9 +47,10 @@ To replace the generated sample data, add
 
 ## Mobile ads
 
-Debug and test-workspace builds use Google's sample App IDs and ad units.
-The normal mobile release enables live placements only when their App ID and
-unit IDs are supplied. Keep the banner and rewarded units separate.
+A plain `flutter run` and the test workspace use Google's sample ad units.
+On Android, run `flutter run --dart-define=ENTRIES_ADMOB_LIVE=true` to use
+your own AdMob units. Mobile release builds use your configured App ID and
+ad unit IDs by default.
 
 - Android build defines: `ENTRIES_ADMOB_ANDROID_APP_ID`,
   `ENTRIES_ADMOB_ANDROID_BANNER_ID`, and `ENTRIES_ADMOB_ANDROID_REWARDED_ID`.
@@ -63,10 +64,11 @@ Supply each build define as `--dart-define=NAME=value`. Configure and publish
 the applicable consent messages in AdMob's **Privacy & messaging** section.
 Use the test-workspace target to verify rewards before enabling live ads.
 
-You can store the live build defines in the ignored
-`entrynote.release.local.json` and pass
-`--dart-define-from-file=entrynote.release.local.json`. Use the platform's
-own App ID and distinct banner and rewarded IDs from the same publisher.
+Store your Android AdMob IDs in the ignored `entrynote.release.local.json`
+at the project root. Explicit
+`--dart-define` and `--dart-define-from-file` values take precedence.
+Use the platform's own App ID and distinct banner and rewarded IDs from the
+same publisher.
 
 ## Android release signing
 

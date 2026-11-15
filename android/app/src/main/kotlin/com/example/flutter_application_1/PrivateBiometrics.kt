@@ -20,6 +20,15 @@ internal class PrivateBiometrics(private val activity: FragmentActivity) {
     private var authenticating = false
 
     fun handle(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method == "canOfferBiometrics") {
+            val status = BiometricManager.from(activity).canAuthenticate(authenticators)
+            result.success(
+                status == BiometricManager.BIOMETRIC_SUCCESS ||
+                    status == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ||
+                    status == BiometricManager.BIOMETRIC_STATUS_UNKNOWN,
+            )
+            return
+        }
         if (call.method !in setOf("wrapBiometricKey", "unwrapBiometricKey", "deleteBiometricKey")) {
             result.notImplemented()
             return

@@ -4,7 +4,7 @@ import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'dart:async';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -27,6 +27,7 @@ class PrivateContentPage extends StatefulWidget {
     this.securitySettings = false,
     this.onChanged,
     this.onDirtyChanged,
+    this.onCollapse,
     this.controller,
   });
   final String payload;
@@ -35,13 +36,19 @@ class PrivateContentPage extends StatefulWidget {
   final bool securitySettings;
   final ValueChanged<String>? onChanged;
   final ValueChanged<bool>? onDirtyChanged;
+  final VoidCallback? onCollapse;
   final PrivateContentEditorController? controller;
   @override
   State<PrivateContentPage> createState() => _PrivateContentPageState();
 }
 
 class _PrivateContentPageState extends State<PrivateContentPage>
-    with WidgetsBindingObserver {
+    with
+        WidgetsBindingObserver,
+        AutomaticKeepAliveClientMixin<PrivateContentPage> {
+  @override
+  bool get wantKeepAlive => widget.embedded;
+
   final _text = TextEditingController();
   final _login = TextEditingController();
   final _entryPassword = TextEditingController();
@@ -73,6 +80,8 @@ class _PrivateContentPageState extends State<PrivateContentPage>
   final _password = TextEditingController();
   final _passwordFocus = FocusNode();
   final _confirmation = TextEditingController();
+  bool _showPassword = false;
+  bool _showConfirmation = false;
   bool _isPasswordConfigured = false;
   bool _isBiometricEnabled = false;
   bool _hasDeviceRecovery = false;
@@ -91,6 +100,14 @@ class _PrivateContentPageState extends State<PrivateContentPage>
   Completer<void>? _waitingForResume;
   int _generation = 0;
   String? _error;
+
+  void _clearPasswordFields() {
+    _password.clear();
+    _confirmation.clear();
+    _showPassword = false;
+    _showConfirmation = false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -124,56 +141,6 @@ class _PrivateContentPageState extends State<PrivateContentPage>
               _error = AppLocalizations.of(context)!
                   .privateStorageIsUnavailableOnThisDevice,
         );
-      }
-    }
-  }
-
-  Future<void> _toggleBiometrics(bool value) async {
-    if (_key == null || _isWorking) return;
-    _lockTimer?.cancel();
-    setState(() {
-      _isWorking = true;
-      _isAuthenticating = true;
-    });
-    try {
-      if (value) {
-        final isEnabled = await PrivateContentStore.enableBiometrics(_key!);
-        if (!isEnabled) return;
-        await _waitForForeground();
-        if (mounted) {
-          setState(() {
-            _isBiometricEnabled = isEnabled;
-            _error = null;
-          });
-        }
-      } else {
-        await PrivateContentStore.disableBiometrics();
-        if (mounted) setState(() => _isBiometricEnabled = false);
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(
-          () => _error = error is FormatException
-              ? error.message
-              : AppLocalizations.of(context)!
-                    .biometricsCouldNotBeSetUpCheckYourDeviceSettingsOrTryAgain,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isWorking = false;
-          _isAuthenticating = false;
-        });
-        if (_isLocked) {
-          _key?.destroy();
-          _key = null;
-        } else if (WidgetsBinding.instance.lifecycleState !=
-            AppLifecycleState.resumed) {
-          await _lock();
-        } else {
-          _restartTimer();
-        }
       }
     }
   }
@@ -217,8 +184,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
       }
     } finally {
       if (mounted) {
-        _password.clear();
-        _confirmation.clear();
+        _clearPasswordFields();
         setState(() => _isWorking = false);
         // If the app lost focus while saving, discard the unlocked key as well
         if (_isLocked) {
@@ -271,6 +237,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
       );
       return;
     }
+    final password = _password.text;
     final generation = ++_generation;
     final l10n = AppLocalizations.of(context)!;
     setState(() {
@@ -280,6 +247,11 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     });
     SecretKeyData? key;
     try {
+      if (!await _requireScreenLock() ||
+          !mounted ||
+          generation != _generation) {
+        return;
+      }
       if (!_isScreenProtected) {
         await PrivateContentStore.protectScreen(true);
         _isScreenProtected = true;
@@ -290,29 +262,22 @@ class _PrivateContentPageState extends State<PrivateContentPage>
               ? l10n.resetPrivatePassword
               : l10n.privateInformation,
         );
-        if (key == null) {
-          if (mounted) setState(() => _error = l10n.couldNotVerifyScreenLock);
-          return;
-        }
+        if (key == null) return;
       } else if (isBiometric) {
         key = await PrivateContentStore.unlockWithBiometrics();
-        if (key == null) {
-          if (!mounted) return;
-          throw FormatException(
-            AppLocalizations.of(
-              context,
-            )!.biometricsAreUnavailableUnlockWithYourPrivatePasswordToSetThemUpAgain,
-          );
-        }
+        if (key == null) return;
       } else {
         key = await PrivateContentStore.unlockWithPassword(
-          _password.text,
+          password,
           isExisting: _payload.isNotEmpty,
         );
       }
       if (!mounted || generation != _generation) return;
       final value = await PrivateContentStore.decrypt(_payload, key);
-      final isPasswordConfigured = await PrivateContentStore.hasPassword();
+      final isPasswordConfigured =
+          isPassword ||
+          _isPasswordConfigured ||
+          await PrivateContentStore.hasPassword();
       final isBiometricEnabled = await PrivateContentStore.hasBiometrics()
           .catchError((Object _) => false);
       if (!isPassword && !await _waitForForeground()) {
@@ -324,7 +289,18 @@ class _PrivateContentPageState extends State<PrivateContentPage>
         return;
       }
       if (!mounted || generation != _generation) return;
-      await PrivateContentStore.prepareDeviceRecovery(key);
+      var recoverySetupFailed = false;
+      try {
+        await PrivateContentStore.prepareDeviceRecovery(key);
+      } catch (error) {
+        recoverySetupFailed = true;
+        if (kDebugMode) {
+          final code = error is PlatformException ? ' (${error.code})' : '';
+          debugPrint(
+            'Private device recovery setup: ${error.runtimeType}$code',
+          );
+        }
+      }
       final hasDeviceRecovery = await PrivateContentStore.hasDeviceRecovery()
           .catchError((Object _) => false);
       if (!isPassword && !await _waitForForeground()) {
@@ -356,28 +332,52 @@ class _PrivateContentPageState extends State<PrivateContentPage>
         _isBiometricEnabled = isBiometricEnabled;
         _hasDeviceRecovery = hasDeviceRecovery;
         _isChangingPassword = resetPassword;
+        if (recoverySetupFailed) _error = l10n.privateRecoverySetupFailed;
       });
       _restartTimer();
     } catch (error) {
-      if (mounted) {
-        setState(
-          () => _error = useDeviceRecovery
-              ? AppLocalizations.of(context)!.couldNotVerifyScreenLock
-              : error is FormatException
-              ? error.message
-              : isBiometric
-              ? AppLocalizations.of(
-                  context,
-                )!.biometricAccessIsUnavailableOrWasCancelledUseYourPrivatePassword
-              : AppLocalizations.of(context)!
-                    .couldNotUnlockPrivateInformationPleaseTryAgain,
-        );
+      if (kDebugMode) {
+        final action = isCreating ? 'creation' : 'unlock';
+        final code = error is PlatformException ? ' (${error.code})' : '';
+        debugPrint('Private information $action: ${error.runtimeType}$code');
+      }
+      if (mounted && generation == _generation) {
+        final message = switch (error) {
+          PrivateRecoveryFailure.noScreenLock =>
+            l10n.screenLockSetupInstructions,
+          PrivateRecoveryFailure.missingKey => l10n.screenLockNeedsPriorUnlock,
+          PrivateRecoveryFailure.unreadableKey =>
+            l10n.privateRecoveryKeyAccessFailed,
+          PrivateRecoveryFailure.setup => l10n.privateRecoverySetupFailed,
+          PrivateRecoveryFailure.prompt => l10n.couldNotVerifyScreenLock,
+          PrivateRecoveryFailure.busy => l10n.privateRecoveryBusy,
+          FormatException(message: 'Incorrect private password.') =>
+            l10n.incorrectPrivateMergePassword,
+          FormatException(
+            message: 'Unlock with biometrics first, then add a private password.',
+          ) =>
+            l10n.unlockWithBiometricsToSetABackupPassword,
+          FormatException(
+            message: 'The private key is missing. Existing private text cannot be recovered here.',
+          ) =>
+            l10n.privatePasswordUnavailable,
+          _ when isCreating =>
+            l10n.couldNotSaveThePrivatePasswordPleaseTryAgain,
+          _ when useDeviceRecovery => l10n.privateRecoveryKeyAccessFailed,
+          _ when isBiometric =>
+            l10n.biometricAccessIsUnavailableOrWasCancelledUseYourPrivatePassword,
+          _ => l10n.couldNotUnlockPrivateInformationPleaseTryAgain,
+        };
+        setState(() => _error = message);
+        if (error == PrivateRecoveryFailure.missingKey &&
+            _isPasswordConfigured) {
+          _passwordFocus.requestFocus();
+        }
       }
     } finally {
       key?.destroy();
       if (mounted) {
-        _password.clear();
-        _confirmation.clear();
+        _clearPasswordFields();
         setState(() {
           _isWorking = false;
           _isAuthenticating = false;
@@ -393,8 +393,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     _key = null;
     final value = _privateDraft;
     _clearPrivateDraft();
-    _password.clear();
-    _confirmation.clear();
+    _clearPasswordFields();
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _isLocked = true;
@@ -402,7 +401,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
       _isChangingPassword = false;
     });
     try {
-      if (key != null && widget.isEditable) {
+      if (key != null && _isDirty) {
         _payload = await PrivateContentStore.encrypt(value, key);
         if (mounted && widget.embedded) {
           _isDirty = false;
@@ -467,7 +466,16 @@ class _PrivateContentPageState extends State<PrivateContentPage>
 
   Future<void> _done() async {
     if (widget.embedded) {
-      await _commitEmbedded();
+      final payload = await _commitEmbedded();
+      if (payload != null && mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.privateInformationSaved,
+            ),
+          ),
+        );
+      }
       return;
     }
     if (_isWorking) return;
@@ -535,25 +543,27 @@ class _PrivateContentPageState extends State<PrivateContentPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed &&
+        (_showPassword || _showConfirmation)) {
+      setState(() {
+        _showPassword = false;
+        _showConfirmation = false;
+      });
+    }
     if (state == AppLifecycleState.resumed) {
       final waiting = _waitingForResume;
       if (waiting != null && !waiting.isCompleted) waiting.complete();
     }
-    if (state != AppLifecycleState.resumed && _isAuthenticating) {
-      // iOS temporarily loses focus for Face ID. A real background transition
-      // still invalidates this attempt and clears any visible private fields.
-      if (defaultTargetPlatform != TargetPlatform.iOS ||
-          (state != AppLifecycleState.hidden &&
-              state != AppLifecycleState.paused)) {
-        return;
-      }
+    if (state != AppLifecycleState.resumed && _isAuthenticating && _isLocked) {
+      // The system prompt can take focus. Keep the fields locked until the
+      // authentication result arrives and this route is in the foreground.
+      return;
     }
     if (state != AppLifecycleState.resumed) {
       if (_isWorking) {
         // Hide immediately even while a protected save is completing
         _generation++;
-        _password.clear();
-        _confirmation.clear();
+        _clearPasswordFields();
         _clearPrivateDraft();
         setState(() => _isLocked = true);
       } else {
@@ -586,6 +596,22 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     super.dispose();
   }
 
+  IconButton _passwordVisibilityButton(
+    bool visible,
+    VoidCallback toggle,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    return IconButton(
+      tooltip: visible
+          ? l10n.hidePrivateEntryPassword
+          : l10n.showPrivateEntryPassword,
+      onPressed: _isReady && !_isWorking ? toggle : null,
+      icon: Icon(
+        visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+      ),
+    );
+  }
+
   Widget _passwordFields({
     required bool creating,
     required VoidCallback submit,
@@ -597,7 +623,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
         TextField(
           controller: _password,
           focusNode: _passwordFocus,
-          obscureText: true,
+          obscureText: !_showPassword,
           enabled: _isReady && !_isWorking,
           autocorrect: false,
           enableSuggestions: false,
@@ -612,6 +638,10 @@ class _PrivateContentPageState extends State<PrivateContentPage>
             helperText: creating
                 ? AppLocalizations.of(context)!.useAtLeast6Characters
                 : null,
+            suffixIcon: _passwordVisibilityButton(
+              _showPassword,
+              () => setState(() => _showPassword = !_showPassword),
+            ),
           ),
           onSubmitted: creating ? null : (_) => submit(),
         ),
@@ -619,7 +649,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
           const SizedBox(height: 12),
           TextField(
             controller: _confirmation,
-            obscureText: true,
+            obscureText: !_showConfirmation,
             enabled: _isReady && !_isWorking,
             autocorrect: false,
             enableSuggestions: false,
@@ -627,6 +657,12 @@ class _PrivateContentPageState extends State<PrivateContentPage>
             autofillHints: const [AutofillHints.newPassword],
             decoration: InputDecoration(
               labelText: AppLocalizations.of(context)!.repeatPrivatePassword,
+              suffixIcon: _passwordVisibilityButton(
+                _showConfirmation,
+                () => setState(
+                  () => _showConfirmation = !_showConfirmation,
+                ),
+              ),
             ),
             onSubmitted: (_) => submit(),
           ),
@@ -634,17 +670,17 @@ class _PrivateContentPageState extends State<PrivateContentPage>
       ],
     ),
   );
-  Future<void> _useScreenLock({bool resetPassword = false}) async {
-    if (_isWorking || !_isReady) return;
+  Future<bool> _requireScreenLock() async {
+    if (!PrivateContentStore.supportsBiometrics) return true;
     final l10n = AppLocalizations.of(context)!;
     bool configured;
     try {
       configured = await PrivateContentStore.hasScreenLock();
     } catch (_) {
       if (mounted) setState(() => _error = l10n.couldNotVerifyScreenLock);
-      return;
+      return false;
     }
-    if (!mounted || _isWorking) return;
+    if (!mounted) return false;
     if (!configured) {
       final open = await showDialog<bool>(
         context: context,
@@ -665,24 +701,22 @@ class _PrivateContentPageState extends State<PrivateContentPage>
           ],
         ),
       );
-      if (!mounted || open != true) return;
+      if (!mounted || open != true) return false;
       try {
         await PrivateContentStore.openScreenLockSettings();
       } on PlatformException {
         if (mounted) setState(() => _error = l10n.screenLockSetupInstructions);
       }
-      return;
+      return false;
     }
-    if (!_hasDeviceRecovery) {
-      if (_isBiometricEnabled && resetPassword) {
-        await _unlock(isBiometric: true, resetPassword: true);
-        return;
-      }
-      setState(() => _error = l10n.screenLockNeedsPriorUnlock);
-      _passwordFocus.requestFocus();
-      return;
+    return true;
+  }
+
+  Future<void> _useScreenLock({bool resetPassword = false}) {
+    if (!resetPassword && !_isPasswordConfigured && _isBiometricEnabled) {
+      return _unlock(isBiometric: true);
     }
-    await _unlock(useDeviceRecovery: true, resetPassword: resetPassword);
+    return _unlock(useDeviceRecovery: true, resetPassword: resetPassword);
   }
 
   Future<void> _copyPrivateValue(String value, String confirmation) async {
@@ -832,21 +866,27 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     padding: EdgeInsets.all(widget.embedded ? 12 : 20),
     children: [
       if (_isLocked) ...[
-        const Icon(Icons.lock_outline_rounded, size: 40),
-        const SizedBox(height: 16),
-        Text(
-          AppLocalizations.of(context)!.passwordsAndSensitiveText,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
+        if (!widget.embedded) ...[
+          Icon(
+            widget.securitySettings
+                ? Icons.shield_outlined
+                : Icons.lock_outline_rounded,
+            size: 40,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            AppLocalizations.of(context)!.passwordsAndSensitiveText,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+        ],
         Text(
           _isPasswordConfigured
               ? (_isBiometricEnabled || _hasDeviceRecovery
                     ? AppLocalizations.of(context)!.enterPasswordOrUseScreenLock
                     : AppLocalizations.of(context)!.enterYourPrivatePassword)
               : _isBiometricEnabled
-              ? AppLocalizations.of(context)!
-                    .unlockWithBiometricsToSetABackupPassword
+              ? AppLocalizations.of(context)!.enterPasswordOrUseScreenLock
               : _payload.isNotEmpty
               ? AppLocalizations.of(context)!.privatePasswordUnavailable
               : AppLocalizations.of(context)!
@@ -868,32 +908,31 @@ class _PrivateContentPageState extends State<PrivateContentPage>
               _isWorking
                   ? AppLocalizations.of(context)!.pleaseWait
                   : _isPasswordConfigured
-                  ? AppLocalizations.of(context)!.unlock
+                  ? PrivateContentStore.supportsBiometrics
+                        ? AppLocalizations.of(context)!.enterPassword
+                        : AppLocalizations.of(context)!.unlock
                   : AppLocalizations.of(context)!.createPassword,
             ),
           ),
         ],
-        if (_isBiometricEnabled)
-          OutlinedButton.icon(
-            onPressed: _isWorking || !_isReady
-                ? null
-                : () => _unlock(isBiometric: true),
-            icon: const Icon(Icons.fingerprint),
-            label: Text(AppLocalizations.of(context)!.unlockWithBiometrics),
-          ),
-        if (PrivateContentStore.supportsBiometrics && _hasDeviceRecovery)
+        if (PrivateContentStore.supportsBiometrics &&
+            (_isPasswordConfigured ||
+                _hasDeviceRecovery ||
+                _isBiometricEnabled))
           OutlinedButton.icon(
             onPressed: _isWorking || !_isReady ? null : () => _useScreenLock(),
             icon: const Icon(Icons.phonelink_lock_outlined),
-            label: Text(AppLocalizations.of(context)!.useScreenLock),
+            label: Text(AppLocalizations.of(context)!.unlock),
           ),
-        if (_isPasswordConfigured && PrivateContentStore.supportsBiometrics)
-          TextButton(
+        if (_isPasswordConfigured && PrivateContentStore.supportsBiometrics) ...[
+          const SizedBox(height: 10),
+          FilledButton.tonal(
             onPressed: _isWorking || !_isReady
                 ? null
                 : () => _useScreenLock(resetPassword: true),
             child: Text(AppLocalizations.of(context)!.forgotPassword),
           ),
+        ],
       ] else ...[
         if (_isChangingPassword || !_isPasswordConfigured) ...[
           Text(
@@ -902,8 +941,9 @@ class _PrivateContentPageState extends State<PrivateContentPage>
                 : AppLocalizations.of(context)!.addABackupPrivatePassword,
             style: Theme.of(context).textTheme.titleSmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           _passwordFields(creating: true, submit: _savePassword),
+          const SizedBox(height: 20),
           FilledButton(
             onPressed: _isWorking ? null : _savePassword,
             child: Text(AppLocalizations.of(context)!.savePassword),
@@ -951,22 +991,12 @@ class _PrivateContentPageState extends State<PrivateContentPage>
         ],
         if (widget.securitySettings && !_isChangingPassword) ...[
           if (_isPasswordConfigured && !_isChangingPassword)
-            TextButton(
+            FilledButton.tonalIcon(
               onPressed: _isWorking
                   ? null
                   : () => setState(() => _isChangingPassword = true),
-              child: Text(AppLocalizations.of(context)!.changePrivatePassword),
-            ),
-          if (PrivateContentStore.supportsBiometrics)
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: Text(AppLocalizations.of(context)!.useBiometrics),
-              subtitle: Text(
-                AppLocalizations.of(context)!
-                    .unlockWithYourFingerprintOrFaceRecognitionOnThisDevice,
-              ),
-              value: _isBiometricEnabled,
-              onChanged: _isWorking ? null : _toggleBiometrics,
+              icon: const Icon(Icons.key_outlined),
+              label: Text(AppLocalizations.of(context)!.changePrivatePassword),
             ),
         ],
       ],
@@ -984,7 +1014,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
         const SizedBox(height: 20),
         FilledButton(
           onPressed: _isWorking ? null : _done,
-          child: Text(AppLocalizations.of(context)!.usePrivateInformation),
+          child: Text(AppLocalizations.of(context)!.apply),
         ),
         const SizedBox(height: 8),
         Text(
@@ -997,6 +1027,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
   );
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (widget.embedded) {
       final colors = Theme.of(context).colorScheme;
       return Container(
@@ -1011,11 +1042,23 @@ class _PrivateContentPageState extends State<PrivateContentPage>
             ListTile(
               leading: Icon(Icons.lock_outline, color: colors.primary),
               title: Text(AppLocalizations.of(context)!.privateInformation),
-              trailing: !_isLocked
-                  ? IconButton(
-                      tooltip: AppLocalizations.of(context)!.lockNow,
-                      onPressed: _isWorking ? null : _lock,
-                      icon: const Icon(Icons.lock_outline),
+              trailing: !_isLocked || widget.onCollapse != null
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!_isLocked)
+                          IconButton(
+                            tooltip: AppLocalizations.of(context)!.lockNow,
+                            onPressed: _isWorking ? null : _lock,
+                            icon: const Icon(Icons.lock_outline),
+                          ),
+                        if (widget.onCollapse case final collapse?)
+                          IconButton(
+                            tooltip: AppLocalizations.of(context)!.close,
+                            onPressed: _isWorking ? null : collapse,
+                            icon: const Icon(Icons.expand_less),
+                          ),
+                      ],
                     )
                   : null,
             ),

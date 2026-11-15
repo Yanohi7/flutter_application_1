@@ -8,7 +8,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Entries"
+        android:label="EntryNote"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <meta-data

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 final entriesAds = MobileAdsService();
@@ -9,6 +10,10 @@ enum RewardedAdResult { earned, dismissed, unavailable }
 
 class MobileAdsService extends ChangeNotifier {
   static const _testPublisher = 'ca-app-pub-3940256099942544';
+  static const _liveAds = bool.fromEnvironment(
+    'ENTRIES_ADMOB_LIVE',
+    defaultValue: !kDebugMode,
+  );
   static const _androidApp = String.fromEnvironment(
     'ENTRIES_ADMOB_ANDROID_APP_ID',
   );
@@ -25,9 +30,13 @@ class MobileAdsService extends ChangeNotifier {
   static const _iosRewarded = String.fromEnvironment(
     'ENTRIES_ADMOB_IOS_REWARDED_ID',
   );
+  static const _androidConfiguration = MethodChannel('entries/admob_config');
 
   bool _enabled = false;
   bool _testAds = false;
+  String _appId = '';
+  String _bannerId = '';
+  String _rewardedId = '';
   Future<void>? _consent;
   Future<InitializationStatus>? _initialization;
   bool _showingReward = false;
@@ -36,10 +45,31 @@ class MobileAdsService extends ChangeNotifier {
 
   bool get _android => defaultTargetPlatform == TargetPlatform.android;
 
-  void configure({required bool testAds}) {
+  Future<void> configure({required bool testWorkspace}) async {
     _enabled =
         !kIsWeb && (_android || defaultTargetPlatform == TargetPlatform.iOS);
-    _testAds = testAds;
+    _testAds = testWorkspace || !_liveAds;
+    if (!_enabled || _testAds) return;
+
+    if (_android) {
+      Map<String, String>? configuration;
+      try {
+        configuration = await _androidConfiguration
+            .invokeMapMethod<String, String>('configuration');
+      } on PlatformException {
+        debugPrint('Could not read Android AdMob configuration.');
+      } on MissingPluginException {
+        // Native configuration is available after a full Android rebuild.
+      }
+      _appId = configuration?['appId'] ?? _androidApp;
+      _bannerId = configuration?['bannerId'] ?? _androidBanner;
+      _rewardedId = configuration?['rewardedId'] ?? _androidRewarded;
+      return;
+    }
+
+    _appId = _iosApp;
+    _bannerId = _iosBanner;
+    _rewardedId = _iosRewarded;
   }
 
   static final _appIdPattern = RegExp(r'^(ca-app-pub-[0-9]+)~[0-9]+$');
@@ -49,19 +79,22 @@ class MobileAdsService extends ChangeNotifier {
       ? null
       : _testAds
       ? '$_testPublisher/${_android ? '9214589741' : '2435281174'}'
-      : _liveUnit(_android ? _androidBanner : _iosBanner);
+      : _liveUnit(_bannerId);
 
   String? get rewardedId => !_enabled
       ? null
       : _testAds
       ? '$_testPublisher/${_android ? '5224354917' : '1712485313'}'
-      : _liveUnit(_android ? _androidRewarded : _iosRewarded);
+      : _liveUnit(_rewardedId);
+
+  String? get _livePublisher {
+    final publisher = _appIdPattern.firstMatch(_appId)?.group(1);
+    return publisher == _testPublisher ? null : publisher;
+  }
 
   String? _liveUnit(String id) {
-    final publisher = _appIdPattern
-        .firstMatch(_android ? _androidApp : _iosApp)
-        ?.group(1);
-    if (publisher == null || publisher == _testPublisher) return null;
+    final publisher = _livePublisher;
+    if (publisher == null) return null;
     return _unitIdPattern.firstMatch(id)?.group(1) == publisher ? id : null;
   }
 

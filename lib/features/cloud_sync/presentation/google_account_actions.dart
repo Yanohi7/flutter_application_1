@@ -15,53 +15,59 @@ Future<void> showWorkspaceAccounts(
   final accounts = await sync.localAccounts();
   if (!context.mounted || sync.busy) return;
   final l10n = AppLocalizations.of(context)!;
+  ModalRoute<Object?>? sheet;
   final selected = await showModalBottomSheet<Object>(
     context: context,
     showDragHandle: true,
     useSafeArea: true,
-    builder: (context) => ListView(
-      shrinkWrap: true,
-      padding: const EdgeInsets.only(bottom: 12),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            l10n.switchAccount,
-            style: Theme.of(context).textTheme.titleLarge,
+    builder: (context) {
+      sheet = ModalRoute.of(context);
+      return ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.only(bottom: 12),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              l10n.switchAccount,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
           ),
-        ),
-        for (final account in accounts)
+          for (final account in accounts)
+            ListTile(
+              leading: CircleAvatar(
+                foregroundImage: account.avatar == null
+                    ? null
+                    : MemoryImage(account.avatar!),
+                child: const Icon(Icons.person_outline),
+              ),
+              title: Text(
+                account.isGuest && account.displayName == 'Guest'
+                    ? l10n.guest
+                    : account.displayName,
+              ),
+              subtitle: Text(
+                account.isGuest
+                    ? l10n.entriesSavedOnThisDevice
+                    : (account.googleEmail ?? l10n.googleAccount),
+              ),
+              selected: account.id == sync.activeUserId,
+              trailing: account.id == sync.activeUserId
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () => Navigator.pop(context, account),
+            ),
           ListTile(
-            leading: CircleAvatar(
-              foregroundImage: account.avatar == null
-                  ? null
-                  : MemoryImage(account.avatar!),
-              child: const Icon(Icons.person_outline),
-            ),
-            title: Text(
-              account.isGuest && account.displayName == 'Guest'
-                  ? l10n.guest
-                  : account.displayName,
-            ),
-            subtitle: Text(
-              account.isGuest
-                  ? l10n.entriesSavedOnThisDevice
-                  : (account.googleEmail ?? l10n.googleAccount),
-            ),
-            selected: account.id == sync.activeUserId,
-            trailing: account.id == sync.activeUserId
-                ? const Icon(Icons.check)
-                : null,
-            onTap: () => Navigator.pop(context, account),
+            leading: const Icon(Icons.person_add_outlined),
+            title: Text(l10n.addGoogleAccount),
+            onTap: () => Navigator.pop(context, true),
           ),
-        ListTile(
-          leading: const Icon(Icons.person_add_outlined),
-          title: Text(l10n.addGoogleAccount),
-          onTap: () => Navigator.pop(context, true),
-        ),
-      ],
-    ),
+        ],
+      );
+    },
   );
+  // Let the old workspace's routes finish detaching before it is replaced.
+  await sheet?.completed;
   if (!context.mounted) return;
   if (selected is LocalUserAccount) {
     await sync.selectAccount(selected);
@@ -107,10 +113,21 @@ class GoogleAccountActions extends StatelessWidget {
                   ? null
                   : () => showWorkspaceAccounts(context, sync),
             ),
+          if (sync.hasGoogleWorkspace)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.logout_outlined),
+              title: Text(l10n.signOut),
+              onTap: sync.busy || sync.profile.saving ? null : sync.signOut,
+            ),
           if (sync.accountBusy) const LinearProgressIndicator(),
           if (sync.accountMessage case final message?)
             Text(
-              cloudSyncMessage(context, message),
+              cloudSyncMessage(
+                context,
+                message,
+                fallback: l10n.couldNotConnectGoogle,
+              ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
         ],

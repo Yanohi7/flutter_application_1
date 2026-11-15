@@ -32,7 +32,7 @@ class DriveWorkspaceStore {
   final String _name;
   static const _timeout = Duration(seconds: 60);
 
-  Future<List<DriveRevision>> heads() async {
+  Future<List<DriveRevision>> _listRevisions() async {
     final revisions = <DriveRevision>[];
     String? pageToken;
     do {
@@ -42,7 +42,7 @@ class DriveWorkspaceStore {
         {
           'spaces': 'appDataFolder',
           'q': "name = '$_name'",
-          'fields': 'nextPageToken,files(id,appProperties)',
+          'fields': 'nextPageToken,incompleteSearch,files(id,appProperties)',
           'pageSize': '1000',
           'pageToken': ?pageToken,
         },
@@ -52,6 +52,11 @@ class DriveWorkspaceStore {
           .timeout(_timeout);
       _check(response);
       final page = jsonDecode(response.body) as Map<String, dynamic>;
+      if (page['incompleteSearch'] == true) {
+        throw const DriveSyncException(
+          'Google Drive is temporarily unavailable. Try again.',
+        );
+      }
       for (final file in page['files'] as List<dynamic>? ?? const []) {
         final properties = file['appProperties'] as Map<String, dynamic>?;
         final digest = properties?['digest'];
@@ -71,10 +76,53 @@ class DriveWorkspaceStore {
       }
       pageToken = page['nextPageToken'] as String?;
     } while (pageToken != null);
+    return revisions;
+  }
+
+  Future<List<DriveRevision>> heads() async {
+    final revisions = await _listRevisions();
     final parents = {for (final revision in revisions) ...revision.parents};
     return revisions
         .where((revision) => !parents.contains(revision.id))
         .toList();
+  }
+
+  /// Delete replaced snapshots, keeping every current branch. Remove ancestors
+  /// first so a failed cleanup cannot make a grandparent look like a new head.
+  Future<void> removeSuperseded() async {
+    final revisions = await _listRevisions();
+    final byId = {for (final revision in revisions) revision.id: revision};
+    final superseded = {for (final revision in revisions) ...revision.parents};
+    final visited = <String>{};
+    final ordered = <String>[];
+    void visit(String id) {
+      final revision = byId[id];
+      if (revision == null || !visited.add(id)) return;
+      for (final parent in revision.parents) {
+        visit(parent);
+      }
+      ordered.add(id);
+    }
+
+    for (final revision in revisions) {
+      if (!superseded.contains(revision.id)) {
+        for (final parent in revision.parents) {
+          visit(parent);
+        }
+      }
+    }
+    if (ordered.isEmpty) return;
+    final headers = await _headers();
+    for (final id in ordered) {
+      final uri = Uri.https(
+        GoogleDriveConfig.apiHost,
+        '${GoogleDriveConfig.filesPath}/$id',
+      );
+      final response = await _client
+          .delete(uri, headers: headers)
+          .timeout(_timeout);
+      if (response.statusCode != 404) _check(response);
+    }
   }
 
   Future<Uint8List> download(String id) async {

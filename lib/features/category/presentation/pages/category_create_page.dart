@@ -1,6 +1,7 @@
 // Create or edit a category with name validation, parent selection and unsaved-change protection
 
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/app_ui.dart';
@@ -299,9 +300,12 @@ class _CategoryCreatePageState extends State<CategoryCreatePage> {
                           child: Text(
                             _parentId == null
                                 ? AppLocalizations.of(context)!.noneTopLevel
-                                : byId[_parentId]?.name ??
-                                      AppLocalizations.of(context)!
-                                          .chooseCategory,
+                                : AppLocalizations.of(context)!
+                                      .categoryDisplayName(
+                                        byId[_parentId]?.name ??
+                                            AppLocalizations.of(context)!
+                                                .chooseCategory,
+                                      ),
                           ),
                         ),
                       ),

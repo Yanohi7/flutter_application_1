@@ -124,7 +124,7 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
       final rows = await txn.query(
         'media_attachments',
         columns: ['id', 'local_path', 'file_type'],
-        where: 'entry_id = ?',
+        where: 'entry_id = ? AND is_deleted = 0',
         whereArgs: [entry.id],
       );
       final removed = rows
@@ -133,9 +133,19 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
       if (entry.attachments.isNotEmpty || removed.isNotEmpty) {
         final batch = txn.batch();
         _upsertAttachments(batch, entry.id!, entry.attachments);
+        final deletedAt = DateTime.now().toUtc().toIso8601String();
         for (final row in removed) {
-          batch.delete(
+          batch.update(
             'media_attachments',
+            {
+              'file_name': '',
+              'display_name': null,
+              'local_path': '',
+              'mime_type': null,
+              'file_size': null,
+              'is_deleted': 1,
+              'deleted_at': deletedAt,
+            },
             where: 'id = ?',
             whereArgs: [row['id']],
           );
@@ -239,18 +249,37 @@ class EntryLocalDataSourceImpl implements EntryLocalDataSource {
     final userId = await dbHelper.workspaceUserId();
     final attachments = await db.transaction((txn) async {
       final owned = await txn.rawQuery(
-        "SELECT entries.id FROM entries JOIN categories ON categories.id = entries.category_id WHERE entries.id = ? AND categories.user_id = ?",
+        "SELECT entries.id FROM entries JOIN categories ON categories.id = entries.category_id WHERE entries.id = ? AND entries.is_deleted = 0 AND categories.user_id = ?",
         [id, userId],
       );
       if (owned.isEmpty) throw StateError("Entry not found.");
       final rows = await txn.query(
         'media_attachments',
         columns: ['local_path', 'file_type'],
-        where: "entry_id = ? AND file_type IN ('photo', 'audio', 'document', 'video')",
+        where: "entry_id = ? AND is_deleted = 0 AND file_type IN ('photo', 'audio', 'document', 'video')",
         whereArgs: [id],
       );
-      // SQLite cascades the deletion to the dependent rows
-      await txn.delete('entries', where: 'id = ?', whereArgs: [id]);
+      final deletedAt = DateTime.now().toUtc().toIso8601String();
+      await txn.delete(
+        'media_attachments',
+        where: 'entry_id = ?',
+        whereArgs: [id],
+      );
+      await txn.update(
+        'entries',
+        {
+          'title': '',
+          'content': '',
+          'private_content': '',
+          'is_pinned': 0,
+          'is_favorite': 0,
+          'is_deleted': 1,
+          'deleted_at': deletedAt,
+          'updated_at': deletedAt,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
       return rows;
     });
 

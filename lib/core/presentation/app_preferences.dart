@@ -79,7 +79,16 @@ class AppPreferences extends ChangeNotifier {
 
   // Local preview preserves the existing prototype experience, without claiming a purchase.
   bool get allowPremiumPreview => _allowPremiumPreview;
-  bool get isPremium => _allowPremiumPreview && _premiumPreviewEnabled;
+  bool _hasPurchasedPremium = false;
+
+  bool get isPremium => _hasPurchasedPremium;
+
+  void updatePurchasedPremium(bool active) {
+    if (_hasPurchasedPremium == active) return;
+    _hasPurchasedPremium = active;
+    notifyListeners();
+  }
+
   bool get isSaving => _isSaving;
   bool get isExpandedPhotos => _isExpandedPhotos;
   ThemeMode get mode => _mode;

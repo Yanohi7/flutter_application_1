@@ -24,9 +24,25 @@ class EntryCubit extends Cubit<EntryState> {
     required this.deleteEntry,
   }) : super(const EntryState());
 
-  Future<void> loadEntries() async {
-    // Do not load while writing or while another load is in progress
-    if (state.isWriting || state.status == EntryStatus.loading) return;
+  Future<void>? _loadingEntries;
+
+  Future<void> loadEntries({bool refreshAfterCurrent = false}) async {
+    if (isClosed || state.isWriting) return;
+    if (_loadingEntries case final pending?) {
+      await pending;
+      if (refreshAfterCurrent) await loadEntries();
+      return;
+    }
+    final pending = _readEntries();
+    _loadingEntries = pending;
+    try {
+      await pending;
+    } finally {
+      _loadingEntries = null;
+    }
+  }
+
+  Future<void> _readEntries() async {
     emit(state.copyWith(status: EntryStatus.loading));
     try {
       final entries =

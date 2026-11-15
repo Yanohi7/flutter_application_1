@@ -122,6 +122,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _changePhoto(ProfileStore profile, {bool remove = false}) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _busy = true);
     try {
       if (remove) {
@@ -131,7 +132,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final file = await openFile(
         acceptedTypeGroups: [
           XTypeGroup(
-            label: AppLocalizations.of(context)!.photos,
+            label: l10n.photos,
             extensions: ['jpg', 'jpeg', 'png', 'webp'],
             mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
             uniformTypeIdentifiers: [
@@ -144,9 +145,7 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       if (file == null || !mounted) return;
       if (await file.length() > 20 * 1024 * 1024) {
-        throw FormatException(
-          AppLocalizations.of(context)!.chooseAPhotoSmallerThan20Mb,
-        );
+        throw FormatException(l10n.chooseAPhotoSmallerThan20Mb);
       }
       final bytes = await file.readAsBytes();
       final codec = await ui
@@ -155,8 +154,7 @@ class _ProfilePageState extends State<ProfilePage> {
             getTargetSize: (width, height) {
               if (width > 16000 || height > 16000) {
                 throw FormatException(
-                  AppLocalizations.of(context)!
-                      .chooseAPhotoUpTo16000PixelsOnEachSide,
+                  l10n.chooseAPhotoUpTo16000PixelsOnEachSide,
                 );
               }
               return width >= height
@@ -202,38 +200,28 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _editName(ProfileStore profile) async {
-    final controller = TextEditingController(text: profile.name);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.profile),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: AppLocalizations.of(context)!.editProfileName,
-            hintText: profile.isGuest
-                ? AppLocalizations.of(context)!.guest
-                : (profile.email ?? ''),
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final name = await showDialog<String>(
+        context: context,
+        builder: (_) => _ProfileNameDialog(name: profile.name),
+      );
+      if (mounted && name != null) await profile.setName(name);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!
+                  .couldNotSaveYourPreferencesPleaseTryAgain,
+            ),
           ),
-          onSubmitted: (_) => Navigator.pop(dialogContext, true),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(AppLocalizations.of(context)!.save),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && controller.text.trim().isNotEmpty) {
-      await profile.setName(controller.text.trim());
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    controller.dispose();
   }
 
   @override
@@ -296,10 +284,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                           children: [
                                             Flexible(
                                               child: Text(
-                                                profile?.name ??
-                                                    AppLocalizations.of(
-                                                      context,
-                                                    )!.guest,
+                                                profile == null ||
+                                                        (profile.isGuest &&
+                                                            profile.name ==
+                                                                'Guest')
+                                                    ? AppLocalizations.of(
+                                                        context,
+                                                      )!.guest
+                                                    : profile.name,
                                                 style: theme
                                                     .textTheme
                                                     .titleMedium
@@ -356,6 +348,26 @@ class _ProfilePageState extends State<ProfilePage> {
                                   AppLocalizations.of(context)!.editProfileName,
                                 ),
                               ),
+                              if (_sync case final sync?
+                                  when profile?.isGuest == false)
+                                ListenableBuilder(
+                                  listenable: sync,
+                                  builder: (context, _) => TextButton.icon(
+                                    onPressed:
+                                        _busy ||
+                                            sync.busy ||
+                                            sync.profile.saving
+                                        ? null
+                                        : sync.signOut,
+                                    icon: const Icon(
+                                      Icons.logout_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      AppLocalizations.of(context)!.signOut,
+                                    ),
+                                  ),
+                                ),
                               TextButton.icon(
                                 onPressed: _busy || profile == null
                                     ? null
@@ -413,4 +425,50 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     },
   );
+}
+
+class _ProfileNameDialog extends StatefulWidget {
+  const _ProfileNameDialog({required this.name});
+
+  final String name;
+
+  @override
+  State<_ProfileNameDialog> createState() => _ProfileNameDialogState();
+}
+
+class _ProfileNameDialogState extends State<_ProfileNameDialog> {
+  late final _name = TextEditingController(text: widget.name);
+
+  void _save() {
+    final value = _name.text.trim();
+    if (value.isNotEmpty) Navigator.pop(context, value);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return AlertDialog(
+      scrollable: true,
+      title: Text(l10n.editProfileName),
+      content: TextField(
+        controller: _name,
+        autofocus: true,
+        decoration: InputDecoration(labelText: l10n.editProfileName),
+        onSubmitted: (_) => _save(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(onPressed: _save, child: Text(l10n.save)),
+      ],
+    );
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart' show ChangeNotifierProvider, Selector;
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/core/presentation/app_brand.dart';
 
 import '../core/database/database_helper.dart';
 import '../core/theme/app_theme.dart';
@@ -191,8 +192,7 @@ class MyApp extends StatelessWidget {
               return MaterialApp(
                 locale: languageCode == null ? null : Locale(languageCode),
                 debugShowCheckedModeBanner: false,
-                onGenerateTitle: (context) =>
-                    AppLocalizations.of(context)!.entries,
+                title: appName,
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 supportedLocales: AppLocalizations.supportedLocales,
                 theme: AppTheme.build(

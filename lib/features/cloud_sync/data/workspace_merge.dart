@@ -1,6 +1,33 @@
 import 'dart:convert';
 
+import 'package:cryptography/cryptography.dart';
+
+import '../../../core/security/private_content_store.dart';
 import 'datasources/drive_workspace_store.dart';
+
+bool sameWorkspacePrivateKey(String first, String second) {
+  if (first == second) return true;
+  final firstId = (jsonDecode(first) as Map<String, dynamic>)['keyId'];
+  final secondId = (jsonDecode(second) as Map<String, dynamic>)['keyId'];
+  return firstId is String && firstId == secondId;
+}
+
+Future<void> reencryptWorkspacePrivateEntries(
+  List<Map<String, dynamic>> entries,
+  SecretKey source,
+  SecretKey target,
+) async {
+  for (final entry in entries) {
+    if (entry['is_deleted'] != 0) continue;
+    final encrypted = entry['private_content'] as String;
+    if (encrypted.isEmpty) continue;
+    final plaintext = await PrivateContentStore.decrypt(encrypted, source);
+    entry['private_content'] = await PrivateContentStore.encrypt(
+      plaintext,
+      target,
+    );
+  }
+}
 
 /// Keeps local rows and imports differing live Drive entries as separate copies.
 String mergeWorkspaceCopies(
@@ -12,31 +39,108 @@ String mergeWorkspaceCopies(
   final categories = _rows(merged, 'categories');
   final entries = _rows(merged, 'entries');
   final attachments = _rows(merged, 'attachments');
+  final remotes = remoteCopies.map(_decode).toList();
+  final deletions = <(Object?, Object?), Map<String, dynamic>>{};
+  final attachmentDeletions =
+      <(Object?, Object?, Object?, Object?), Map<String, dynamic>>{};
+  (Object?, Object?) identity(Map<String, dynamic> entry) =>
+      (entry['id'], entry['created_at']);
+  (Object?, Object?, Object?, Object?) attachmentIdentity(
+    Map<String, dynamic> attachment,
+    Map<Object?, Object?> entryDates,
+  ) => (
+    attachment['id'],
+    attachment['created_at'],
+    attachment['entry_id'],
+    entryDates[attachment['entry_id']],
+  );
+  if (importFolder == null) {
+    for (final data in [merged, ...remotes]) {
+      final entryDates = <Object?, Object?>{};
+      for (final entry in _rows(data, 'entries')) {
+        if (entry['is_deleted'] != 0) deletions[identity(entry)] = entry;
+        entryDates[entry['id']] = entry['created_at'];
+      }
+      for (final marker in _rows(data, 'attachmentDeletions')) {
+        attachmentDeletions[attachmentIdentity(marker, entryDates)] = marker;
+      }
+    }
+  }
+  if (deletions.isNotEmpty) {
+    final localIds = entries.map((entry) => entry['id']).toSet();
+    final defaultCategory = categories.firstWhere(
+      (row) => row['is_default'] == 1,
+    );
+    final deletedIds = <Object?>{};
+    for (var index = 0; index < entries.length; index++) {
+      final entry = entries[index];
+      final deletion = deletions[identity(entry)];
+      if (deletion == null) continue;
+      deletedIds.add(entry['id']);
+      entries[index] = _deletedEntry(deletion, entry['category_id']);
+    }
+    for (final deletion in deletions.values) {
+      if (localIds.add(deletion['id'])) {
+        entries.add(_deletedEntry(deletion, defaultCategory['id']));
+      }
+    }
+    attachments.removeWhere((row) => deletedIds.contains(row['entry_id']));
+  }
+  final originalEntries = {for (final entry in entries) entry['id']: entry};
+  final entryDates = {
+    for (final entry in entries) entry['id']: entry['created_at'],
+  };
+  attachments.removeWhere(
+    (row) =>
+        attachmentDeletions.containsKey(attachmentIdentity(row, entryDates)),
+  );
+  final usedAttachmentIds = attachments.map((row) => row['id']).toSet();
+  final attachmentMarkers = importFolder != null
+      ? _rows(merged, 'attachmentDeletions')
+      : [
+          for (final MapEntry(key: key, value: marker)
+              in attachmentDeletions.entries)
+            if (originalEntries[key.$3]?['is_deleted'] == 0 &&
+                entryDates[key.$3] == key.$4 &&
+                usedAttachmentIds.add(marker['id']))
+              marker,
+        ];
   var nextCategory = _maxId(categories) + 1;
   var nextEntry = _maxId(entries) + 1;
-  var nextAttachment = _maxId(attachments) + 1;
+  var nextAttachment = _maxId([...attachments, ...attachmentMarkers]) + 1;
   final takenNames = {
     for (final row in categories)
       if (row['parent_id'] == null && row['is_deleted'] == 0)
         (row['name'] as String).toLowerCase(),
   };
-  final originalEntries = {for (final entry in entries) entry['id']: entry};
   final originalAttachments = _byEntry(attachments);
   final originalCategories = {
     for (final category in categories) category['id']: category,
   };
   var copyNumber = 0;
 
-  for (final remote in remoteCopies) {
-    final data = _decode(remote);
+  for (final data in remotes) {
     final remoteCategories = _rows(
       data,
       'categories',
     ).where((row) => row['is_deleted'] == 0).toList();
     final liveCategoryIds = remoteCategories.map((row) => row['id']).toSet();
-    final remoteAttachments = _byEntry(_rows(data, 'attachments'));
-    final remoteEntries = _rows(data, 'entries').where((entry) {
+    final remoteRows = _rows(data, 'entries');
+    final remoteDates = {
+      for (final entry in remoteRows) entry['id']: entry['created_at'],
+    };
+    final remoteAttachments = _byEntry(
+      _rows(data, 'attachments')
+          .where(
+            (row) => !attachmentDeletions.containsKey(
+              attachmentIdentity(row, remoteDates),
+            ),
+          )
+          .toList(),
+    );
+    final remoteEntries = remoteRows.where((entry) {
       if (entry['is_deleted'] != 0 ||
+          deletions.containsKey(identity(entry)) ||
           !liveCategoryIds.contains(entry['category_id'])) {
         return false;
       }
@@ -116,12 +220,30 @@ String mergeWorkspaceCopies(
   }
 
   return jsonEncode({
-    ...merged,
+    for (final entry in merged.entries)
+      if (entry.key != 'attachmentDeletions') entry.key: entry.value,
     'categories': categories,
-    'entries': entries,
+    'entries': entries
+      ..sort((a, b) => (a['id'] as int).compareTo(b['id'] as int)),
     'attachments': attachments,
+    if (attachmentMarkers.isNotEmpty)
+      'attachmentDeletions': attachmentMarkers
+        ..sort((a, b) => (a['id'] as int).compareTo(b['id'] as int)),
   });
 }
+
+Map<String, dynamic> _deletedEntry(
+  Map<String, dynamic> entry,
+  Object? categoryId,
+) => {
+  ...entry,
+  'category_id': categoryId,
+  'title': '',
+  'content': '',
+  'private_content': '',
+  'is_pinned': 0,
+  'is_favorite': 0,
+};
 
 Map<String, dynamic> _decode(String snapshot) {
   final data = jsonDecode(snapshot);
@@ -132,7 +254,7 @@ Map<String, dynamic> _decode(String snapshot) {
 }
 
 List<Map<String, dynamic>> _rows(Map<String, dynamic> data, String name) =>
-    (data[name] as List).cast<Map<String, dynamic>>().toList();
+    (data[name] as List? ?? const []).cast<Map<String, dynamic>>().toList();
 
 Map<Object?, List<Map<String, dynamic>>> _byEntry(
   List<Map<String, dynamic>> rows,

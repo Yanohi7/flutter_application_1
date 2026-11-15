@@ -1,6 +1,7 @@
 // Share category edit, move and delete menus between navigation chips and the management tree
 
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -23,7 +24,7 @@ class CategoryActions {
     final action = await showAppDialog<_CategoryAction>(
       context: context,
       builder: (sheetContext) => AppDialog(
-        title: category.name,
+        title: AppLocalizations.of(context)!.categoryDisplayName(category.name),
         onClose: () => Navigator.pop(sheetContext),
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -1592,11 +1592,11 @@ abstract class AppLocalizations {
   /// **'Open settings'**
   String get openSettings;
 
-  /// No description provided for @usePrivateInformation.
+  /// No description provided for @privateInformationSaved.
   ///
   /// In en, this message translates to:
-  /// **'Use private information'**
-  String get usePrivateInformation;
+  /// **'Private information saved to the draft.'**
+  String get privateInformationSaved;
 
   /// No description provided for @discardPrivateChanges.
   ///
@@ -1640,17 +1640,23 @@ abstract class AppLocalizations {
   /// **'End Premium preview'**
   String get endPremiumPreview;
 
-  /// No description provided for @captureYourIdeas.
+  /// No description provided for @onboardingCaptureTitle.
   ///
   /// In en, this message translates to:
-  /// **'Capture your ideas'**
-  String get captureYourIdeas;
+  /// **'Capture what matters'**
+  String get onboardingCaptureTitle;
 
-  /// No description provided for @giveEverythingAPlace.
+  /// No description provided for @onboardingOrganizeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Give everything a place'**
-  String get giveEverythingAPlace;
+  /// **'Organize your entries'**
+  String get onboardingOrganizeTitle;
+
+  /// No description provided for @onboardingPrivacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep private information secure'**
+  String get onboardingPrivacyTitle;
 
   /// No description provided for @takeYourEntriesWithYou.
   ///
@@ -1724,11 +1730,29 @@ abstract class AppLocalizations {
   /// **'Could not save your preferences. Please try again.'**
   String get couldNotSaveYourPreferencesPleaseTryAgain;
 
-  /// No description provided for @startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt.
+  /// No description provided for @onboardingCaptureDescription.
   ///
   /// In en, this message translates to:
-  /// **'Start with a thought. Add a checklist, a photo or a voice recording when you need it.'**
-  String get startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt;
+  /// **'Thoughts, ideas, memories, recipes, plans, and anything you want to keep. Attach photos, audio, videos, and documents to your entries.'**
+  String get onboardingCaptureDescription;
+
+  /// No description provided for @onboardingPrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Save passwords and personal text in a protected block in your entry. Open it with your EntryNote password, biometrics, or your device passcode.'**
+  String get onboardingPrivacyDescription;
+
+  /// No description provided for @onboardingWorkCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Work'**
+  String get onboardingWorkCategory;
+
+  /// No description provided for @onboardingPersonalCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal'**
+  String get onboardingPersonalCategory;
 
   /// No description provided for @groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch.
   ///
@@ -1771,7 +1795,7 @@ abstract class AppLocalizations {
   /// No description provided for @keepTheFocusOnYourNotes.
   ///
   /// In en, this message translates to:
-  /// **'Keep the focus on your notes'**
+  /// **'Keep the focus on your entries'**
   String get keepTheFocusOnYourNotes;
 
   /// No description provided for @makeSpaceForYourIdeas.
@@ -1815,6 +1839,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Purchases are not available yet.'**
   String get purchasesAreNotAvailableYet;
+
+  /// No description provided for @premiumBuyForPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Buy Premium for {price}'**
+  String premiumBuyForPrice(String price);
+
+  /// No description provided for @restorePurchases.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore purchases'**
+  String get restorePurchases;
+
+  /// No description provided for @premiumPurchaseActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium is active.'**
+  String get premiumPurchaseActive;
+
+  /// No description provided for @premiumPurchaseCanceled.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase canceled.'**
+  String get premiumPurchaseCanceled;
+
+  /// No description provided for @premiumPurchasesRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium purchases restored.'**
+  String get premiumPurchasesRestored;
+
+  /// No description provided for @premiumPurchaseFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete the purchase. Try again.'**
+  String get premiumPurchaseFailed;
+
+  /// No description provided for @premiumRestoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restore purchases. Try again.'**
+  String get premiumRestoreFailed;
+
+  /// No description provided for @premiumPurchasePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment is pending.'**
+  String get premiumPurchasePending;
+
+  /// No description provided for @premiumPurchaseUnconfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium access has not been confirmed yet.'**
+  String get premiumPurchaseUnconfirmed;
+
+  /// No description provided for @premiumNoPurchaseToRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'No Premium purchase found to restore.'**
+  String get premiumNoPurchaseToRestore;
 
   /// No description provided for @freePreviewNoPaymentRequired.
   ///
@@ -2095,6 +2179,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not connect your Google account. Try again.'**
   String get couldNotConnectGoogle;
+
+  /// No description provided for @googleSignInCanceledOrDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Google sign-in was canceled or access was denied.'**
+  String get googleSignInCanceledOrDenied;
+
+  /// No description provided for @googleSignInBrowserFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the browser for Google sign-in. Try again.'**
+  String get googleSignInBrowserFailed;
+
+  /// No description provided for @couldNotReadGoogleAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read your Google account details. Reconnect and try again.'**
+  String get couldNotReadGoogleAccount;
+
+  /// No description provided for @googleSignInRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Google to sync your entries.'**
+  String get googleSignInRequired;
+
+  /// No description provided for @googleDriveAccessExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive access has expired. Reconnect your Google account.'**
+  String get googleDriveAccessExpired;
+
+  /// No description provided for @googleDrivePermissionRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect your Google account and allow access to Google Drive to sync your entries.'**
+  String get googleDrivePermissionRequired;
+
+  /// No description provided for @googleDriveAccessDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive denied access. Check your permissions and try again.'**
+  String get googleDriveAccessDenied;
+
+  /// No description provided for @googleDriveTemporarilyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive is temporarily unavailable. Try again in a moment.'**
+  String get googleDriveTemporarilyUnavailable;
+
+  /// No description provided for @googleDriveBackupMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The previous backup could not be found in Google Drive. Your entries are still on this device.'**
+  String get googleDriveBackupMissing;
+
+  /// No description provided for @googleDriveBackupVerificationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not verify the backup from Google Drive. Your entries are safe on this device.'**
+  String get googleDriveBackupVerificationFailed;
+
+  /// No description provided for @googleDriveBackupUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read a backup file in Google Drive.'**
+  String get googleDriveBackupUnreadable;
+
+  /// No description provided for @googleDriveBackupKeyMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The backup is missing the key needed to open private entries.'**
+  String get googleDriveBackupKeyMissing;
+
+  /// No description provided for @googleDriveUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not upload your entries to Google Drive. Try again.'**
+  String get googleDriveUploadFailed;
+
+  /// No description provided for @googleDriveDownloadRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to Profile or All Entries and try to sync again.'**
+  String get googleDriveDownloadRetry;
+
+  /// No description provided for @googleDriveVersionsChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Some entries changed during sync. Sync again to see the latest versions.'**
+  String get googleDriveVersionsChanged;
+
+  /// No description provided for @googleDriveTooManyVersions.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive has too many versions of your entries to combine safely.'**
+  String get googleDriveTooManyVersions;
+
+  /// No description provided for @googleDriveIncompatibleVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'This version of the backup could not be combined with your entries.'**
+  String get googleDriveIncompatibleVersion;
+
+  /// No description provided for @googleDriveWorkspaceNotEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restore the backup because this profile already has local data.'**
+  String get googleDriveWorkspaceNotEmpty;
+
+  /// No description provided for @googleDriveDifferentPrivatePasswords.
+  ///
+  /// In en, this message translates to:
+  /// **'These copies use different protection for private entries. Open them with their own passwords to combine them.'**
+  String get googleDriveDifferentPrivatePasswords;
+
+  /// No description provided for @googleDrivePrivatePasswordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Set a private password before syncing private entries.'**
+  String get googleDrivePrivatePasswordRequired;
 
   /// No description provided for @googleTimeout.
   ///
@@ -2638,6 +2842,24 @@ abstract class AppLocalizations {
   /// **'Edit name'**
   String get editProfileName;
 
+  /// No description provided for @moveWithoutPrivateEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'Move without private entries'**
+  String get moveWithoutPrivateEntries;
+
+  /// No description provided for @createTargetPrivatePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a private password for this account'**
+  String get createTargetPrivatePassword;
+
+  /// No description provided for @privateEntriesStayInGuest.
+  ///
+  /// In en, this message translates to:
+  /// **'You can also leave private entries and their attachments in Guest.'**
+  String get privateEntriesStayInGuest;
+
   /// No description provided for @moveGuestEntries.
   ///
   /// In en, this message translates to:
@@ -2647,8 +2869,38 @@ abstract class AppLocalizations {
   /// No description provided for @moveGuestEntriesDescription.
   ///
   /// In en, this message translates to:
-  /// **'Move guest entries on this device to {email}? Entries with private information stay in Guest.'**
+  /// **'Move guest entries, including private information and attachments, from this device to {email}?'**
   String moveGuestEntriesDescription(String email);
+
+  /// No description provided for @generalCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get generalCategory;
+
+  /// No description provided for @movingGuestEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'Moving entries…'**
+  String get movingGuestEntries;
+
+  /// No description provided for @guestPrivatePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Guest private password'**
+  String get guestPrivatePassword;
+
+  /// No description provided for @couldNotMoveGuestEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not move guest entries. Try again.'**
+  String get couldNotMoveGuestEntries;
+
+  /// No description provided for @setGuestPrivatePasswordBeforeTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set a private password in Guest before moving private entries.'**
+  String get setGuestPrivatePasswordBeforeTransfer;
 
   /// No description provided for @entriesFromThisDevice.
   ///
@@ -2685,6 +2937,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Screen lock access is unavailable for these entries on this phone. Try a device where you’ve previously opened them, or use your private password.'**
   String get screenLockNeedsPriorUnlock;
+
+  /// No description provided for @privateRecoverySetupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not set up system unlock on this device. Try again using your private password.'**
+  String get privateRecoverySetupFailed;
+
+  /// No description provided for @privateRecoveryKeyAccessFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the protected key on this device. Try system unlock again or use your private password.'**
+  String get privateRecoveryKeyAccessFailed;
+
+  /// No description provided for @privateRecoveryBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'System verification is already in progress. Finish it and try again.'**
+  String get privateRecoveryBusy;
 
   /// No description provided for @couldNotVerifyScreenLock.
   ///

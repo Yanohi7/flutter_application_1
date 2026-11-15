@@ -1,6 +1,7 @@
 // Display a compact entry preview, category path and quick actions without writing storage directly
 
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -35,12 +36,16 @@ class EntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = entrySearchText(entry.content);
-    var location = entry.categoryName;
+    final l10n = AppLocalizations.of(context)!;
+    var location = l10n.categoryDisplayName(entry.categoryName);
     // Only resolve visible paths and listen to category data rather than every Cubit state
     if (showCategoryPath) {
       location =
           context.select(
-            (CategoryCubit cubit) => cubit.state.pathLabel(entry.categoryId),
+            (CategoryCubit cubit) => cubit.state.pathLabel(
+              entry.categoryId,
+              l10n.categoryDisplayName,
+            ),
           ) ??
           location;
     }

@@ -14,9 +14,24 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
     private val deviceRecovery = PrivateDeviceRecovery(this)
+    private val attachmentPicker = EntryAttachmentPicker(this)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        attachmentPicker.register(flutterEngine.dartExecutor.binaryMessenger)
+        PrivatePasswordDerivation.register(flutterEngine.dartExecutor.binaryMessenger)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "entries/admob_config")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "configuration") {
+                    result.success(mapOf(
+                        "appId" to BuildConfig.ADMOB_APP_ID,
+                        "bannerId" to BuildConfig.ADMOB_BANNER_ID,
+                        "rewardedId" to BuildConfig.ADMOB_REWARDED_ID,
+                    ))
+                } else {
+                    result.notImplemented()
+                }
+            }
         val biometrics = PrivateBiometrics(this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "entries/privacy")
             .setMethodCallHandler { call, result ->

@@ -9,8 +9,11 @@ void main() {
   final desktop = _draw(background: true, rounded: true);
   _write('assets/branding/entries-icon.png', standard);
   _write('assets/branding/entries-desktop.png', desktop);
-  _write('assets/branding/entries-foreground.png', _draw());
-  _write('assets/branding/entries-monochrome.png', _draw(monochrome: true));
+  _write('assets/branding/entries-foreground.png', _draw(adaptive: true));
+  _write(
+    'assets/branding/entries-monochrome.png',
+    _draw(adaptive: true, monochrome: true),
+  );
   Directory('linux/runner/resources').createSync(recursive: true);
   _write('linux/runner/resources/entries.png', _resize(desktop, 256));
   File('windows/runner/resources/app_icon.ico').writeAsBytesSync(
@@ -24,17 +27,33 @@ void main() {
 img.Image _draw({
   bool background = false,
   bool rounded = false,
+  bool adaptive = false,
   bool monochrome = false,
 }) {
   const size = 1024;
   final canvas = img.Image(width: size, height: size, numChannels: 4);
   const navy = (19, 30, 46);
   const paper = (245, 248, 250);
+  const mint = (114, 222, 192);
+  // Android's foreground has its own geometry to fit the launcher masks.
+  final (width, height, corner, stroke) = adaptive
+      ? (520, 584, 124, 54)
+      : (640, 768, 88, 62);
+  final left = (size - width) ~/ 2;
+  final top = (size - height) ~/ 2;
   for (final pixel in canvas) {
     final x = pixel.x;
     final y = pixel.y;
-    final outer = _coverage(x, y, 298, 246, 428, 532, 80);
-    final inner = _coverage(x, y, 348, 296, 328, 432, 34);
+    final outer = _coverage(x, y, left, top, width, height, corner);
+    final inner = _coverage(
+      x,
+      y,
+      left + stroke,
+      top + stroke,
+      width - 2 * stroke,
+      height - 2 * stroke,
+      corner - stroke,
+    );
     final ink = outer * (1 - inner);
     if (background) {
       final alpha = rounded ? _coverage(x, y, 48, 48, 928, 928, 204) : 1.0;
@@ -53,19 +72,20 @@ img.Image _draw({
       );
     }
   }
-  for (final (y, width) in [(400, 204), (492, 204), (584, 126)]) {
+  final textLeft = adaptive ? 370 : 342;
+  final lines = adaptive
+      ? [(370, 284, 52), (474, 284, 44), (568, 178, 44)]
+      : [(330, 340, 60), (452, 340, 52), (566, 210, 52)];
+  for (final (index, (y, width, height)) in lines.indexed) {
+    final color = monochrome ? (255, 255, 255) : (index == 0 ? mint : paper);
     img.fillRect(
       canvas,
-      x1: 410,
+      x1: textLeft,
       y1: y,
-      x2: 409 + width,
-      y2: y + 37,
-      radius: 19,
-      color: monochrome
-          ? img.ColorRgb8(255, 255, 255)
-          : y == 584
-          ? img.ColorRgb8(114, 222, 192)
-          : img.ColorRgb8(paper.$1, paper.$2, paper.$3),
+      x2: textLeft + width - 1,
+      y2: y + height - 1,
+      radius: height / 2,
+      color: img.ColorRgb8(color.$1, color.$2, color.$3),
     );
   }
   return canvas;

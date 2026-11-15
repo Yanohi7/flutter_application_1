@@ -13,7 +13,7 @@ import 'core/security/private_content_store.dart';
 import 'features/cloud_sync/data/datasources/google_account_remote_datasource.dart';
 import 'features/cloud_sync/presentation/cloud_sync_controller.dart';
 import 'features/profile/data/profile_store.dart';
-
+import 'features/premium/premium_billing.dart';
 // Export MyApp for the code to work if other classes import main
 export 'app/app.dart' show MyApp;
 
@@ -25,15 +25,15 @@ Future<void> startEntries({
   String? testWorkspaceNamespace,
 }) async {
   WidgetsFlutterBinding.ensureInitialized(); // Required for using plugins/native code before runApp
-  entriesAds.configure(testAds: kDebugMode || testWorkspaceNamespace != null);
+  await entriesAds.configure(testWorkspace: testWorkspaceNamespace != null);
   PrivateContentStore.workspaceNamespace = testWorkspaceNamespace;
   await appPreferences.load(
     key: testWorkspaceNamespace == null
         ? AppPreferences.storageKey
         : '${AppPreferences.storageKey}_$testWorkspaceNamespace',
-    allowPremiumPreview:
-        entriesAds.rewardedId == null && entriesAds.bannerId == null,
+    allowPremiumPreview: false,
   );
+  await PremiumBilling.configure();
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.linux)) {
@@ -56,6 +56,7 @@ Future<void> startEntries({
   }
   final database =
       await (prepareWorkspace?.call() ?? Future.value(DatabaseHelper.instance));
+  PrivateContentStore.database = database;
   if (await GoogleAccountRemoteDataSource.isSupported()) {
     final sync = CloudSyncController(
       database,

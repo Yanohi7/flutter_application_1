@@ -91,28 +91,35 @@ class _FilterSheetState extends State<_FilterSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  AppLocalizations.of(context)!.filterSort,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-              ),
-              Flexible(
-                child: TextButton(
-                  onPressed: () => setState(() {
-                    _sort = 'Newest';
-                    _time = 'All time';
-                    _content = 'All types';
-                  }),
+          LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Expanded(
                   child: Text(
-                    AppLocalizations.of(context)!.reset,
-                    textAlign: TextAlign.center,
+                    AppLocalizations.of(context)!.filterSort,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * 0.4,
+                  ),
+                  child: TextButton(
+                    onPressed: () => setState(() {
+                      const defaults = EntryViewOptions();
+                      _sort = defaults.sort;
+                      _time = defaults.time;
+                      _content = defaults.content;
+                    }),
+                    child: Text(
+                      AppLocalizations.of(context)!.reset,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           FieldLabel(AppLocalizations.of(context)!.sortBy),

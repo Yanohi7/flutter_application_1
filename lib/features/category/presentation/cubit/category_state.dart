@@ -39,20 +39,24 @@ class CategoryState {
   });
 
   static final _indexes =
-      Expando<({Map<int, EntryCategory> byId, Map<int, String?> labels})>();
+      Expando<({Map<int, EntryCategory> byId, Map<int, List<String>> names})>();
 
   List<EntryCategory> get selectedPath => _pathTo(selectedCategoryId);
 
-  ({Map<int, EntryCategory> byId, Map<int, String?> labels}) get _index =>
+  ({Map<int, EntryCategory> byId, Map<int, List<String>> names}) get _index =>
       _indexes[categories] ??= (
         byId: {for (final category in categories) category.id: category},
-        labels: <int, String?>{},
+        names: <int, List<String>>{},
       );
 
-  String? pathLabel(int id) => _index.labels.putIfAbsent(id, () {
-    final path = _pathTo(id);
-    return path.isEmpty ? null : path.map((item) => item.name).join(' → ');
-  });
+  String? pathLabel(int id, [String Function(String)? localize]) {
+    final path = _index.names.putIfAbsent(
+      id,
+      () => _pathTo(id).map((item) => item.name).toList(),
+    );
+    if (path.isEmpty) return null;
+    return (localize == null ? path : path.map(localize)).join(' → ');
+  }
 
   List<EntryCategory> _pathTo(int? id) {
     final byId = _index.byId;

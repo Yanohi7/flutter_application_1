@@ -100,7 +100,10 @@ class SettingsPage extends StatelessWidget {
                   ReadablePanel(
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.lock_outline),
+                      leading: Icon(
+                        Icons.shield_outlined,
+                        color: colors.primary,
+                      ),
                       title: Text(AppLocalizations.of(context)!.security),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => Navigator.of(context).push<void>(

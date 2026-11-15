@@ -143,71 +143,15 @@ class CloudSyncPanel extends StatelessWidget {
     if (keepBoth == true && context.mounted) {
       await sync.keepBothCopies(
         requestPassword: ({required local, required copy}) => context.mounted
-            ? showDialog<String>(
-                context: context,
-                builder: (_) =>
-                    _PrivateCopyPasswordDialog(local: local, copy: copy),
+            ? showWorkspacePrivatePassword(
+                context,
+                local
+                    ? AppLocalizations.of(context)!.localPrivatePassword
+                    : AppLocalizations.of(context)!
+                          .driveCopyPrivatePassword(copy),
               )
             : Future.value(null),
       );
     }
-  }
-}
-
-class _PrivateCopyPasswordDialog extends StatefulWidget {
-  const _PrivateCopyPasswordDialog({required this.local, required this.copy});
-
-  final bool local;
-  final int copy;
-
-  @override
-  State<_PrivateCopyPasswordDialog> createState() =>
-      _PrivateCopyPasswordDialogState();
-}
-
-class _PrivateCopyPasswordDialogState
-    extends State<_PrivateCopyPasswordDialog> {
-  final _password = TextEditingController();
-
-  void _submit() {
-    if (_password.text.isNotEmpty) Navigator.pop(context, _password.text);
-  }
-
-  @override
-  void dispose() {
-    _password.clear();
-    _password.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return AlertDialog(
-      scrollable: true,
-      title: Text(
-        widget.local
-            ? l10n.localPrivatePassword
-            : l10n.driveCopyPrivatePassword(widget.copy),
-      ),
-      content: TextField(
-        controller: _password,
-        autofocus: true,
-        obscureText: true,
-        autocorrect: false,
-        enableSuggestions: false,
-        enableIMEPersonalizedLearning: false,
-        autofillHints: null,
-        onSubmitted: (_) => _submit(),
-        decoration: InputDecoration(labelText: l10n.enterYourPrivatePassword),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(onPressed: _submit, child: Text(l10n.unlock)),
-      ],
-    );
   }
 }

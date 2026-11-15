@@ -1,4 +1,5 @@
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/core/presentation/app_brand.dart';
 
 import 'dart:math' as math;
 
@@ -47,25 +48,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final slides = [
       _Slide(
-        title: AppLocalizations.of(context)!.captureYourIdeas,
-        description: AppLocalizations.of(context)!
-            .startWithAThoughtAddAChecklistAPhotoOrAVoiceRecordingWhenYouNeedIt,
-        art: _WritingArt(),
+        title: l10n.onboardingCaptureTitle,
+        description: l10n.onboardingCaptureDescription,
+        art: const _WritingArt(),
       ),
       _Slide(
-        title: AppLocalizations.of(context)!.giveEverythingAPlace,
-        description: AppLocalizations.of(context)!
-            .groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch,
-        art: _CategoryArt(),
+        title: l10n.onboardingOrganizeTitle,
+        description:
+            l10n.groupEntriesInCategoriesPinWhatMattersAndFindItAgainWithSearch,
+        art: const _CategoryArt(),
       ),
       _Slide(
-        title: AppLocalizations.of(context)!.takeYourEntriesWithYou,
-        description: AppLocalizations.of(
-          context,
-        )!.signInWithGoogleToSyncEntriesCategoriesAndAttachmentsAcrossYourDevicesYouCanAlwaysWorkOffline,
-        art: _SyncArt(),
+        title: l10n.onboardingPrivacyTitle,
+        description: l10n.onboardingPrivacyDescription,
+        art: const _PrivacyArt(),
+      ),
+      _Slide(
+        title: l10n.takeYourEntriesWithYou,
+        description: l10n
+            .signInWithGoogleToSyncEntriesCategoriesAndAttachmentsAcrossYourDevicesYouCanAlwaysWorkOffline,
+        art: const _SyncArt(),
       ),
     ];
 
@@ -88,10 +93,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        AppLocalizations.of(context)!.entries,
-                        style: theme.textTheme.titleLarge,
-                      ),
+                      child: Text(appName, style: theme.textTheme.titleLarge),
                     ),
                     TextButton(
                       onPressed: busy ? null : complete,
@@ -152,7 +154,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Text(
-                            cloudSyncMessage(context, message),
+                            cloudSyncMessage(
+                              context,
+                              message,
+                              fallback: l10n.couldNotConnectGoogle,
+                            ),
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall,
                           ),
@@ -324,6 +330,7 @@ class _CategoryArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return SizedBox(
       width: 232,
       height: 162,
@@ -337,12 +344,12 @@ class _CategoryArt extends StatelessWidget {
             children: [
               for (final (label, fill, ink) in [
                 (
-                  'Work',
+                  l10n.onboardingWorkCategory,
                   colors.secondaryContainer,
                   colors.onSecondaryContainer,
                 ),
                 (
-                  'Personal',
+                  l10n.onboardingPersonalCategory,
                   colors.tertiaryContainer,
                   colors.onTertiaryContainer,
                 ),
@@ -370,6 +377,48 @@ class _CategoryArt extends StatelessWidget {
                   ),
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrivacyArt extends StatelessWidget {
+  const _PrivacyArt();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 232,
+      height: 162,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 174,
+            height: 106,
+            alignment: const Alignment(-0.55, 0),
+            decoration: BoxDecoration(
+              color: colors.secondaryContainer,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: colors.outlineVariant),
+            ),
+            child: Icon(
+              Icons.password_rounded,
+              size: 52,
+              color: colors.onSecondaryContainer,
+            ),
+          ),
+          Positioned(
+            right: 36,
+            child: CircleAvatar(
+              radius: 26,
+              backgroundColor: colors.primary,
+              foregroundColor: colors.onPrimary,
+              child: const Icon(Icons.lock_outline_rounded, size: 26),
+            ),
           ),
         ],
       ),

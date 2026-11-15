@@ -1,6 +1,7 @@
 // Build root and child category chip rows while keeping the selected ancestor path visible
 
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/features/category/presentation/category_display_name.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -98,7 +99,8 @@ class _CategoriesNavigationState extends State<CategoriesNavigation> {
               ),
               for (final category in roots)
                 _chip(
-                  label: category.name,
+                  label: AppLocalizations.of(context)!
+                      .categoryDisplayName(category.name),
                   onLongPress: enabled
                       ? () => CategoryActions.show(context, category)
                       : null,
@@ -126,7 +128,8 @@ class _CategoriesNavigationState extends State<CategoriesNavigation> {
                     (category) => category.parentId == parent.id,
                   ))
                     _chip(
-                      label: child.name,
+                      label: AppLocalizations.of(context)!
+                          .categoryDisplayName(child.name),
                       onLongPress: enabled
                           ? () => CategoryActions.show(context, child)
                           : null,

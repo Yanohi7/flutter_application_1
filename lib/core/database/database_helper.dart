@@ -118,7 +118,7 @@ class DatabaseHelper {
     final path = await _resolvePath();
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       // Enable SQLite relationship checks on every opened connection
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON;');
@@ -218,6 +218,7 @@ class DatabaseHelper {
         }
         if (oldVersion < 8) await _addAccountColumns(db);
         if (oldVersion < 9) await _createGuestTransfer(db);
+        if (oldVersion < 10) await _createPrivateKeyTable(db);
       },
     );
   }
@@ -537,7 +538,15 @@ class DatabaseHelper {
     );
     await _addAccountColumns(db);
     await _createGuestTransfer(db);
+    await _createPrivateKeyTable(db);
   }
+
+  Future<void> _createPrivateKeyTable(Database db) => db.execute('''
+    CREATE TABLE private_workspace_keys (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      envelope TEXT NOT NULL
+    )
+  ''');
 
   Future<void> _addAccountColumns(Database db) async {
     await db.execute('ALTER TABLE users ADD COLUMN google_account_id TEXT');

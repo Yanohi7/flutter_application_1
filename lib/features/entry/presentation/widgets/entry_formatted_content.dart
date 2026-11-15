@@ -613,7 +613,10 @@ class _EntryExtrasState extends State<EntryExtras> {
             return Table(
               columnWidths: widths,
               defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-              border: TableBorder.all(color: colors.outlineVariant),
+              border: TableBorder.all(
+                color: colors.onSurfaceVariant,
+                width: 1.2,
+              ),
               children: [
                 for (var row = 0; row < rows.length; row++)
                   TableRow(
