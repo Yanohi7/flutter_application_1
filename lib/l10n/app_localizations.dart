@@ -1370,6 +1370,12 @@ abstract class AppLocalizations {
   /// **'Photo background'**
   String get photoBackground;
 
+  /// No description provided for @phoneBackgroundSizeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For a phone background, use a portrait photo around 1080 × 2400 px.'**
+  String get phoneBackgroundSizeHint;
+
   /// No description provided for @backgroundPhotos.
   ///
   /// In en, this message translates to:
@@ -2932,16 +2938,22 @@ abstract class AppLocalizations {
   /// **'Set a PIN, pattern, or passcode in your phone’s security settings, then come back and try again.'**
   String get screenLockSetupInstructions;
 
+  /// No description provided for @privatePasswordKeepSafe.
+  ///
+  /// In en, this message translates to:
+  /// **'Important. Remember this password and keep it somewhere safe. If you lose your phone, you’ll need this password to open your private information on a new device.'**
+  String get privatePasswordKeepSafe;
+
   /// No description provided for @screenLockNeedsPriorUnlock.
   ///
   /// In en, this message translates to:
-  /// **'Screen lock access is unavailable for these entries on this phone. Try a device where you’ve previously opened them, or use your private password.'**
+  /// **'Enter your EntryNote password to enable system unlock on this device. If you forgot it, reset it on a device where system unlock already works.'**
   String get screenLockNeedsPriorUnlock;
 
   /// No description provided for @privateRecoverySetupFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not set up system unlock on this device. Try again using your private password.'**
+  /// **'Could not set up system unlock. Please try again.'**
   String get privateRecoverySetupFailed;
 
   /// No description provided for @privateRecoveryKeyAccessFailed.

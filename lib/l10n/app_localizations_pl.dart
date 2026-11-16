@@ -646,6 +646,10 @@ class AppLocalizationsPl extends AppLocalizations {
   String get photoBackground => 'Zdjęcie w tle';
 
   @override
+  String get phoneBackgroundSizeHint =>
+      'Na tło telefonu polecamy pionowe zdjęcie o wymiarach około 1080 × 2400 pikseli.';
+
+  @override
   String get backgroundPhotos => 'Zdjęcia tła';
 
   @override
@@ -1584,12 +1588,16 @@ class AppLocalizationsPl extends AppLocalizations {
       'Ustaw PIN, wzór lub kod w ustawieniach zabezpieczeń telefonu, a potem wróć i spróbuj ponownie.';
 
   @override
+  String get privatePasswordKeepSafe =>
+      'Ważne. Zapamiętaj to hasło i przechowuj je w bezpiecznym miejscu. Jeśli zgubisz telefon, to hasło będzie potrzebne do uzyskania dostępu do prywatnych informacji na nowym urządzeniu.';
+
+  @override
   String get screenLockNeedsPriorUnlock =>
-      'Blokada ekranu na tym telefonie nie otworzy tych wpisów. Spróbuj na urządzeniu, na którym były już otwierane, lub wpisz prywatne hasło.';
+      'Wpisz hasło EntryNote, aby włączyć odblokowanie systemowe na tym urządzeniu. Jeśli nie pamiętasz hasła, zresetuj je na urządzeniu, na którym odblokowanie systemowe już działa.';
 
   @override
   String get privateRecoverySetupFailed =>
-      'Nie udało się skonfigurować odblokowania systemowego. Spróbuj ponownie, używając hasła prywatnego.';
+      'Nie udało się skonfigurować odblokowania systemowego. Spróbuj ponownie.';
 
   @override
   String get privateRecoveryKeyAccessFailed =>

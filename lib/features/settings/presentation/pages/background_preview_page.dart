@@ -50,9 +50,7 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
   late double _x = widget.isExisting ? widget.preferences.photoX : 0;
   late double _y = widget.isExisting ? widget.preferences.photoY : 0;
   late double _zoom = widget.isExisting ? widget.preferences.photoZoom : 1;
-  late double _fade = widget.isExisting
-      ? widget.preferences.backgroundFade
-      : 0.18;
+  late double _fade = widget.isExisting ? widget.preferences.backgroundFade : 0;
   late double _opacity = widget.preferences.surfaceOpacity;
   double _gestureZoom = 1, _gestureX = 0, _gestureY = 0;
   Offset _gestureOrigin = Offset.zero;
@@ -70,17 +68,20 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
     super.didChangeDependencies();
     final path = _photoPath;
     if (_stream != null || path == null || widget.opacityOnly) return;
-    _stream = PhotoWallpaper.imageProvider(path)
-        .resolve(createLocalImageConfiguration(context));
+    _stream = PhotoWallpaper.imageProvider(
+      path,
+      context,
+    ).resolve(createLocalImageConfiguration(context));
     _listener = ImageStreamListener(
       (info, _) {
-        if (mounted)
+        if (mounted) {
           setState(
             () => _imageSize = Size(
               info.image.width.toDouble(),
               info.image.height.toDouble(),
             ),
           );
+        }
         info.dispose();
       },
       onError: (Object _, StackTrace? _) {
@@ -121,6 +122,11 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
     if (mounted) Navigator.pop(context, composition);
   }
 
+  void _releasePointer() {
+    _pointerCount = math.max(0, _pointerCount - 1);
+    if (_pointerCount == 0) _pointerOrigin = null;
+  }
+
   void _pan(ScaleUpdateDetails details, Size viewport) {
     final image = _imageSize;
     if (image == null) return;
@@ -132,20 +138,19 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
       _gestureY = _y;
     }
     final zoom = (_gestureZoom * details.scale).clamp(1.0, 3.0);
-    final fit =
-        math.max(viewport.width / image.width, viewport.height / image.height) *
-        zoom;
-    final overflowX = image.width * fit - viewport.width;
-    final overflowY = image.height * fit - viewport.height;
+    final pan = PhotoWallpaper.crop(viewport, image, zoom).pan;
     final delta = details.localFocalPoint - _gestureOrigin;
+    final x = pan.dx > 1
+        ? (_gestureX - 2 * delta.dx / pan.dx).clamp(-1.0, 1.0)
+        : 0.0;
+    final y = pan.dy > 1
+        ? (_gestureY - 2 * delta.dy / pan.dy).clamp(-1.0, 1.0)
+        : 0.0;
+    if (_zoom == zoom && _x == x && _y == y) return;
     setState(() {
       _zoom = zoom;
-      _x = overflowX > 1
-          ? (_gestureX - 2 * delta.dx / overflowX).clamp(-1.0, 1.0)
-          : 0;
-      _y = overflowY > 1
-          ? (_gestureY - 2 * delta.dy / overflowY).clamp(-1.0, 1.0)
-          : 0;
+      _x = x;
+      _y = y;
     });
   }
 
@@ -225,54 +230,52 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
                         width,
                         width * screen.height / screen.width,
                       );
-                      return Center(
-                        child: Container(
-                          width: viewport.width,
-                          height: viewport.height,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outlineVariant,
-                            ),
-                          ),
-                          child: Listener(
-                            behavior: HitTestBehavior.opaque,
-                            onPointerDown: (event) {
-                              if (_pointerCount == 0)
-                                _pointerOrigin = event.localPosition;
-                              _pointerCount++;
-                            },
-                            onPointerUp: (_) {
-                              _pointerCount = math.max(0, _pointerCount - 1);
-                              if (_pointerCount == 0) _pointerOrigin = null;
-                            },
-                            onPointerCancel: (_) {
-                              _pointerCount = 0;
-                              _pointerOrigin = null;
-                            },
-                            child: GestureDetector(
-                              key: const Key('background-preview-stage'),
-                              behavior: HitTestBehavior.opaque,
-                              dragStartBehavior: DragStartBehavior.down,
-                              onScaleStart: widget.opacityOnly
-                                  ? null
-                                  : (details) {
-                                      _gesturePointerCount =
-                                          details.pointerCount;
-                                      _gestureOrigin = details.pointerCount <= 1
-                                          ? (_pointerOrigin ??
-                                                details.localFocalPoint)
-                                          : details.localFocalPoint;
-                                      _gestureZoom = _zoom;
-                                      _gestureX = _x;
-                                      _gestureY = _y;
-                                    },
-                              onScaleUpdate: widget.opacityOnly
-                                  ? null
-                                  : (details) => _pan(details, viewport),
+                      // Use the whole row for gestures while keeping the crop
+                      // viewport at the device's aspect ratio.
+                      return Listener(
+                        onPointerDown: widget.opacityOnly
+                            ? null
+                            : (event) {
+                                if (_pointerCount == 0) {
+                                  _pointerOrigin = event.localPosition;
+                                }
+                                _pointerCount++;
+                              },
+                        onPointerUp: (_) => _releasePointer(),
+                        onPointerCancel: (_) => _releasePointer(),
+                        child: GestureDetector(
+                          key: const Key('background-preview-stage'),
+                          behavior: HitTestBehavior.opaque,
+                          dragStartBehavior: DragStartBehavior.down,
+                          onScaleStart: widget.opacityOnly
+                              ? null
+                              : (details) {
+                                  _gesturePointerCount = details.pointerCount;
+                                  _gestureOrigin = details.pointerCount <= 1
+                                      ? (_pointerOrigin ??
+                                            details.localFocalPoint)
+                                      : details.localFocalPoint;
+                                  _gestureZoom = _zoom;
+                                  _gestureX = _x;
+                                  _gestureY = _y;
+                                },
+                          onScaleUpdate: widget.opacityOnly
+                              ? null
+                              : (details) => _pan(details, viewport),
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: viewport.width,
+                              height: viewport.height,
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outlineVariant,
+                                ),
+                              ),
                               child: FittedBox(
                                 fit: BoxFit.contain,
                                 child: SizedBox(
@@ -349,8 +352,9 @@ class _BackgroundPreviewPageState extends State<BackgroundPreviewPage> {
                           (value) => _opacity = value,
                         ),
                         Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          spacing: 8,
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
                           runSpacing: 8,
                           children: [
                             if (!widget.opacityOnly)

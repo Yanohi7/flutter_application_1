@@ -278,7 +278,9 @@ class PrivateContentStore {
           'wrapDeviceRecoveryKey',
           {'alias': alias, 'data': bytes},
         );
-        if (wrapped == null) throw PrivateRecoveryFailure.setup;
+        if (wrapped == null || wrapped.length != 256) {
+          throw PrivateRecoveryFailure.setup;
+        }
         await _storage.write(key: alias, value: base64Encode(wrapped));
       } else {
         await _deviceRecoveryCall<void>('wrapSystemRecoveryKey', {
@@ -342,13 +344,11 @@ class PrivateContentStore {
         return await _verifiedRecoveryKey(bytes, envelope);
       } on FormatException {
         await _markRecoveryForRepair(alias);
-        throw PrivateRecoveryFailure.missingKey;
       } on PrivateRecoveryFailure catch (failure) {
-        if (failure == PrivateRecoveryFailure.missingKey) {
-          await _markRecoveryForRepair(alias);
-        }
-        rethrow;
+        if (failure != PrivateRecoveryFailure.missingKey) rethrow;
+        await _markRecoveryForRepair(alias);
       }
+      // An older device-bound copy can still unlock the same workspace key.
     }
     final passcodeAlias = _keyForWorkspace('entries_recovery_v2', scope);
     final legacyAlias = _keyForWorkspace('entries_recovery_v1', scope);
@@ -358,13 +358,15 @@ class PrivateContentStore {
     final saved = passcodeCopy ?? await _storage.read(key: legacyAlias);
     Uint8List? bytes;
     if (saved == null) {
+      final deferredKey = _keyForWorkspace('entries_screen_lock_v1', scope);
+      if (!await _deferredStorage.containsKey(key: deferredKey)) {
+        throw PrivateRecoveryFailure.missingKey;
+      }
       if (Platform.isIOS &&
           await _deviceRecoveryCall<bool>('verifyScreenLock', prompt) != true) {
         return null;
       }
-      final deferred = await _deferredStorage.read(
-        key: _keyForWorkspace('entries_screen_lock_v1', scope),
-      );
+      final deferred = await _deferredStorage.read(key: deferredKey);
       if (deferred == null) {
         throw PrivateRecoveryFailure.missingKey;
       }
@@ -518,10 +520,13 @@ class PrivateContentStore {
         : (oldKeyId == null
               ? await _fingerprint(utf8.encode(previous))
               : previousData?['legacyId'] as String?);
-    await _saveEnvelope(
-      await createPasswordEnvelope(key, password, legacyId: legacyId),
-      scope: scope,
+    final envelope = await createPasswordEnvelope(
+      key,
+      password,
+      legacyId: legacyId,
     );
+    await prepareWorkspaceDeviceRecovery(key, scope.namespace);
+    await _saveEnvelope(envelope, scope: scope);
     passwordRevision.value++;
   }
 
@@ -605,6 +610,9 @@ class PrivateContentStore {
       var stage = 'encrypt envelope';
       try {
         final wrapped = await createPasswordEnvelope(key, password);
+        // A newly created password must have a working local recovery copy.
+        stage = 'set up device recovery';
+        await prepareWorkspaceDeviceRecovery(key, scope.namespace);
         stage = 'save envelope';
         await _saveEnvelope(wrapped, scope: scope);
         passwordRevision.value++;

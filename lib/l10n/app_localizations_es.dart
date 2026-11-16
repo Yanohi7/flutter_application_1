@@ -647,6 +647,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get photoBackground => 'Foto de fondo';
 
   @override
+  String get phoneBackgroundSizeHint =>
+      'Para el fondo del teléfono, se recomienda una foto vertical de unos 1080 × 2400 píxeles.';
+
+  @override
   String get backgroundPhotos => 'Fotos de fondo';
 
   @override
@@ -1588,12 +1592,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Configura un PIN, patrón o código en los ajustes de seguridad, luego vuelve e inténtalo de nuevo.';
 
   @override
+  String get privatePasswordKeepSafe =>
+      'Importante. Recuerde esta contraseña y guárdela en un lugar seguro. Si pierde su teléfono, necesitará esta contraseña para acceder a su información privada en un dispositivo nuevo.';
+
+  @override
   String get screenLockNeedsPriorUnlock =>
-      'El bloqueo de pantalla no puede abrir estas entradas en este teléfono. Prueba en un dispositivo donde ya las hayas abierto o usa tu contraseña privada.';
+      'Introduzca su contraseña de EntryNote para activar el desbloqueo del sistema en este dispositivo. Si la ha olvidado, restablézcala en un dispositivo donde ya funcione el desbloqueo del sistema.';
 
   @override
   String get privateRecoverySetupFailed =>
-      'No se pudo configurar el desbloqueo del sistema. Vuelva a intentarlo con su contraseña privada.';
+      'No se pudo configurar el desbloqueo del sistema. Vuelva a intentarlo.';
 
   @override
   String get privateRecoveryKeyAccessFailed =>

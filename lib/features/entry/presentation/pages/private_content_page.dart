@@ -160,6 +160,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     final key = _key!;
     final value = widget.isEditable && _isDirty ? _privateDraft : null;
     final password = _password.text;
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isWorking = true);
     try {
       if (value != null) {
@@ -170,17 +171,21 @@ class _PrivateContentPageState extends State<PrivateContentPage>
         TextInput.finishAutofillContext(shouldSave: true);
         setState(() {
           _isPasswordConfigured = true;
+          _hasDeviceRecovery = PrivateContentStore.supportsBiometrics;
           _isChangingPassword = false;
           _error = null;
         });
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = AppLocalizations.of(context)!
-                  .couldNotSaveThePrivatePasswordPleaseTryAgain,
-        );
+        setState(() {
+          _error = switch (error) {
+            PrivateRecoveryFailure.noScreenLock =>
+              l10n.screenLockSetupInstructions,
+            PrivateRecoveryFailure.setup => l10n.privateRecoverySetupFailed,
+            _ => l10n.couldNotSaveThePrivatePasswordPleaseTryAgain,
+          };
+        });
       }
     } finally {
       if (mounted) {
@@ -596,10 +601,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     super.dispose();
   }
 
-  IconButton _passwordVisibilityButton(
-    bool visible,
-    VoidCallback toggle,
-  ) {
+  IconButton _passwordVisibilityButton(bool visible, VoidCallback toggle) {
     final l10n = AppLocalizations.of(context)!;
     return IconButton(
       tooltip: visible
@@ -620,6 +622,14 @@ class _PrivateContentPageState extends State<PrivateContentPage>
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (creating) ...[
+          Text(
+            AppLocalizations.of(context)!.privatePasswordKeepSafe,
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+        ],
         TextField(
           controller: _password,
           focusNode: _passwordFocus,
@@ -659,9 +669,7 @@ class _PrivateContentPageState extends State<PrivateContentPage>
               labelText: AppLocalizations.of(context)!.repeatPrivatePassword,
               suffixIcon: _passwordVisibilityButton(
                 _showConfirmation,
-                () => setState(
-                  () => _showConfirmation = !_showConfirmation,
-                ),
+                () => setState(() => _showConfirmation = !_showConfirmation),
               ),
             ),
             onSubmitted: (_) => submit(),
@@ -924,7 +932,8 @@ class _PrivateContentPageState extends State<PrivateContentPage>
             icon: const Icon(Icons.phonelink_lock_outlined),
             label: Text(AppLocalizations.of(context)!.unlock),
           ),
-        if (_isPasswordConfigured && PrivateContentStore.supportsBiometrics) ...[
+        if (_isPasswordConfigured &&
+            PrivateContentStore.supportsBiometrics) ...[
           const SizedBox(height: 10),
           FilledButton.tonal(
             onPressed: _isWorking || !_isReady

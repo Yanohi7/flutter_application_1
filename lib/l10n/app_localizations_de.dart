@@ -646,6 +646,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get photoBackground => 'Hintergrundfoto';
 
   @override
+  String get phoneBackgroundSizeHint =>
+      'Für den Smartphone-Hintergrund eignet sich ein Foto im Hochformat mit etwa 1080 × 2400 Pixeln.';
+
+  @override
   String get backgroundPhotos => 'Hintergrundfotos';
 
   @override
@@ -1601,12 +1605,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Richte in den Sicherheitseinstellungen eine PIN, ein Muster oder einen Code ein und versuche es danach erneut.';
 
   @override
+  String get privatePasswordKeepSafe =>
+      'Wichtig. Merken Sie sich dieses Passwort und bewahren Sie es sicher auf. Wenn Sie Ihr Smartphone verlieren, benötigen Sie dieses Passwort, um auf einem neuen Gerät auf Ihre privaten Informationen zuzugreifen.';
+
+  @override
   String get screenLockNeedsPriorUnlock =>
-      'Auf diesem Gerät sind diese Einträge nicht über die Displaysperre verfügbar. Nutze ein Gerät, auf dem du sie bereits geöffnet hast, oder dein privates Passwort.';
+      'Geben Sie Ihr EntryNote-Passwort ein, um die Geräteentsperrung hier zu aktivieren. Wenn Sie es vergessen haben, setzen Sie es auf einem Gerät zurück, auf dem die Geräteentsperrung bereits funktioniert.';
 
   @override
   String get privateRecoverySetupFailed =>
-      'Die Geräteentsperrung konnte nicht eingerichtet werden. Versuchen Sie es erneut mit Ihrem privaten Passwort.';
+      'Die Geräteentsperrung konnte nicht eingerichtet werden. Versuchen Sie es erneut.';
 
   @override
   String get privateRecoveryKeyAccessFailed =>

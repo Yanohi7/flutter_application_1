@@ -172,13 +172,15 @@ class _WorkspacePrivatePasswordDialogState
   @override
   void initState() {
     super.initState();
-    _lifecycle = AppLifecycleListener(onInactive: () {
-      if (!_showPassword && !_showConfirmation) return;
-      setState(() {
-        _showPassword = false;
-        _showConfirmation = false;
-      });
-    });
+    _lifecycle = AppLifecycleListener(
+      onInactive: () {
+        if (!_showPassword && !_showConfirmation) return;
+        setState(() {
+          _showPassword = false;
+          _showConfirmation = false;
+        });
+      },
+    );
   }
 
   void _submit() {
@@ -215,6 +217,14 @@ class _WorkspacePrivatePasswordDialogState
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.creating) ...[
+            Text(
+              l10n.privatePasswordKeepSafe,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+          ],
           _passwordField(
             _password,
             l10n.enterYourPrivatePassword,

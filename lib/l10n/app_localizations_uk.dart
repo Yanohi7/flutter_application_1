@@ -646,6 +646,10 @@ class AppLocalizationsUk extends AppLocalizations {
   String get photoBackground => 'Фотофон';
 
   @override
+  String get phoneBackgroundSizeHint =>
+      'Для фону телефона підійде вертикальне фото розміром близько 1080 × 2400 пікселів.';
+
+  @override
   String get backgroundPhotos => 'Фотографії для фону';
 
   @override
@@ -1584,12 +1588,16 @@ class AppLocalizationsUk extends AppLocalizations {
       'Налаштуйте блокування екрана в налаштуваннях телефона, поверніться до EntryNote та спробуйте ще раз.';
 
   @override
+  String get privatePasswordKeepSafe =>
+      'Важливо. Запам’ятайте та збережіть цей пароль. Якщо Ви втратите телефон, цей пароль знадобиться для доступу до приватної інформації на новому пристрої.';
+
+  @override
   String get screenLockNeedsPriorUnlock =>
-      'На цьому пристрої потрібно знову налаштувати системне розблокування. Відкрийте приватну інформацію паролем EntryNote або скористайтеся пристроєм, на якому системне розблокування вже працює.';
+      'Введіть пароль EntryNote, щоб увімкнути системне розблокування на цьому пристрої. Якщо Ви забули пароль, скиньте його на пристрої, де системне розблокування вже працює.';
 
   @override
   String get privateRecoverySetupFailed =>
-      'Не вдалося налаштувати системне розблокування на цьому пристрої. Повторіть спробу з приватним паролем.';
+      'Не вдалося налаштувати системне розблокування. Спробуйте ще раз.';
 
   @override
   String get privateRecoveryKeyAccessFailed =>

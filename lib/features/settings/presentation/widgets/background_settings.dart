@@ -132,19 +132,19 @@ class _BackgroundSettingsState extends State<BackgroundSettings> {
     final preferences = widget.preferences;
     final path = preferences.backgroundPath;
     final busy = _working || preferences.isSaving;
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          AppLocalizations.of(context)!.photoBackground,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text(l10n.photoBackground, style: theme.textTheme.titleMedium),
         const SizedBox(height: 6),
-        Text(
-          AppLocalizations.of(
-            context,
-          )!.makeItYoursWithAPhotoPreviewTheCropAndAdjustReadabilityBeforeApplying,
-        ),
+        Text(switch (theme.platform) {
+          TargetPlatform.android ||
+          TargetPlatform.iOS => l10n.phoneBackgroundSizeHint,
+          _ =>
+            l10n.makeItYoursWithAPhotoPreviewTheCropAndAdjustReadabilityBeforeApplying,
+        }),
         const SizedBox(height: 12),
         Card(
           child: Padding(

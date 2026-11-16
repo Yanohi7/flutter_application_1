@@ -79,9 +79,25 @@ class DatabaseHelper {
     final directory = desktop
         ? (await getApplicationSupportDirectory()).path
         : oldDirectory;
+    final destination = join(directory, 'entries.db');
+
+    // Windows derives the support directory from the executable product name.
+    // Keep using an existing database from before the EntryNote rename.
+    if (Platform.isWindows &&
+        basename(directory).toLowerCase() == 'entrynote') {
+      final beforeRename = join(
+        dirname(directory),
+        'flutter_application_1',
+        'entries.db',
+      );
+      if (!await File(destination).exists() &&
+          await File(beforeRename).exists()) {
+        return beforeRename;
+      }
+    }
 
     return prepareEntriesDatabase(
-      destination: join(directory, 'entries.db'),
+      destination: destination,
       legacyPaths: [
         join(oldDirectory, 'test_database.db'),
         if (desktop) ..._desktopLegacyPaths(),

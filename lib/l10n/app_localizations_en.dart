@@ -646,6 +646,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoBackground => 'Photo background';
 
   @override
+  String get phoneBackgroundSizeHint =>
+      'For a phone background, use a portrait photo around 1080 × 2400 px.';
+
+  @override
   String get backgroundPhotos => 'Background photos';
 
   @override
@@ -1578,12 +1582,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Set a PIN, pattern, or passcode in your phone’s security settings, then come back and try again.';
 
   @override
+  String get privatePasswordKeepSafe =>
+      'Important. Remember this password and keep it somewhere safe. If you lose your phone, you’ll need this password to open your private information on a new device.';
+
+  @override
   String get screenLockNeedsPriorUnlock =>
-      'Screen lock access is unavailable for these entries on this phone. Try a device where you’ve previously opened them, or use your private password.';
+      'Enter your EntryNote password to enable system unlock on this device. If you forgot it, reset it on a device where system unlock already works.';
 
   @override
   String get privateRecoverySetupFailed =>
-      'Could not set up system unlock on this device. Try again using your private password.';
+      'Could not set up system unlock. Please try again.';
 
   @override
   String get privateRecoveryKeyAccessFailed =>

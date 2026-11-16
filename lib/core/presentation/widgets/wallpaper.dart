@@ -136,18 +136,52 @@ class PhotoWallpaper extends StatefulWidget {
   final double x, y, zoom;
   final double opacity;
 
-  static ImageProvider<Object> imageProvider(String path) => ResizeImage(
-    FileImage(File(path)),
-    width: 2560,
-    height: 2560,
-    policy: ResizeImagePolicy.fit,
-  );
+  static ImageProvider<Object> imageProvider(
+    String path,
+    BuildContext context,
+  ) {
+    final screen = MediaQuery.sizeOf(context);
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    // Leave room to zoom without decoding the original camera image at full size.
+    final edge = ((screen.longestSide * pixelRatio * 1.4 / 256).ceil() * 256)
+        .clamp(1536, 3840)
+        .toInt();
+    return ResizeImage(
+      FileImage(File(path)),
+      width: edge,
+      height: edge,
+      policy: ResizeImagePolicy.fit,
+    );
+  }
+
+  static ({Size photo, Offset pan}) crop(
+    Size viewport,
+    Size source,
+    double zoom,
+  ) {
+    final scale = math.max(
+      viewport.width / source.width,
+      viewport.height / source.height,
+    );
+    final photo = source * (scale * zoom);
+    final overflowX = math.max(0.0, photo.width - viewport.width);
+    final overflowY = math.max(0.0, photo.height - viewport.height);
+    // At 100%, center the small crop caused by nearly matching aspect ratios.
+    return (
+      photo: photo,
+      pan: Offset(
+        zoom == 1 && overflowX <= viewport.width * 0.04 ? 0 : overflowX,
+        zoom == 1 && overflowY <= viewport.height * 0.04 ? 0 : overflowY,
+      ),
+    );
+  }
 
   @override
   State<PhotoWallpaper> createState() => _PhotoWallpaperState();
 }
 
 class _PhotoWallpaperState extends State<PhotoWallpaper> {
+  ImageProvider<Object>? _provider;
   ImageStream? _stream;
   ImageStreamListener? _listener;
   ImageInfo? _frame;
@@ -155,7 +189,7 @@ class _PhotoWallpaperState extends State<PhotoWallpaper> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_stream == null) _resolve();
+    _resolve();
   }
 
   @override
@@ -165,10 +199,11 @@ class _PhotoWallpaperState extends State<PhotoWallpaper> {
   }
 
   void _resolve() {
+    final provider = PhotoWallpaper.imageProvider(widget.path, context);
+    if (_provider == provider) return;
+    _provider = provider;
     if (_listener != null) _stream?.removeListener(_listener!);
-    // A wallpaper only needs screen-sized pixels, even when a camera photo is large.
-    final image = PhotoWallpaper.imageProvider(widget.path);
-    _stream = image.resolve(createLocalImageConfiguration(context));
+    _stream = provider.resolve(createLocalImageConfiguration(context));
     _listener = ImageStreamListener(
       (info, _) {
         if (!mounted) {
@@ -200,24 +235,24 @@ class _PhotoWallpaperState extends State<PhotoWallpaper> {
     builder: (context, constraints) {
       final image = _frame?.image;
       if (image == null) return const SizedBox.expand();
-      final scale =
-          math.max(
-            constraints.maxWidth / image.width,
-            constraints.maxHeight / image.height,
-          ) *
-          widget.zoom;
-      final width = image.width * scale, height = image.height * scale;
+      final viewport = constraints.biggest;
+      final (:photo, :pan) = PhotoWallpaper.crop(
+        viewport,
+        Size(image.width.toDouble(), image.height.toDouble()),
+        widget.zoom,
+      );
       return ClipRect(
         child: Stack(
           children: [
             Positioned(
-              left: (constraints.maxWidth - width) * (widget.x + 1) / 2,
-              top: (constraints.maxHeight - height) * (widget.y + 1) / 2,
-              width: width,
-              height: height,
+              left: (viewport.width - photo.width - pan.dx * widget.x) / 2,
+              top: (viewport.height - photo.height - pan.dy * widget.y) / 2,
+              width: photo.width,
+              height: photo.height,
               child: RawImage(
                 image: image,
                 fit: BoxFit.fill,
+                filterQuality: FilterQuality.medium,
                 opacity: AlwaysStoppedAnimation(widget.opacity),
               ),
             ),
