@@ -16,4 +16,4 @@ Designed for fast, distraction-free organization, EntryNote keeps your entire wo
 
 **Privacy and Encryption** protect sensitive entries with client-side encryption keys. If conflicting keys are ever detected across synced devices, separate versions are safely maintained until the conflict is resolved.
 
-**Multi-Language Support** provides a clean, responsive interface tailored for both English and Ukrainian workflows.
+**Multi-Language Support** provides a clean, responsive interface.
