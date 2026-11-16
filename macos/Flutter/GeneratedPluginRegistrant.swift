@@ -11,7 +11,7 @@ import flutter_secure_storage_darwin
 import flutter_video_thumbnail_plus
 import google_sign_in_ios
 import purchases_flutter
-import record_macos
+import record_darwin
 import screen_retriever_macos
 import shared_preferences_foundation
 import sqflite_darwin
@@ -26,7 +26,7 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterVideoThumbnailPlusPlugin.register(with: registry.registrar(forPlugin: "FlutterVideoThumbnailPlusPlugin"))
   GoogleSignInPlugin.register(with: registry.registrar(forPlugin: "GoogleSignInPlugin"))
   PurchasesFlutterPlugin.register(with: registry.registrar(forPlugin: "PurchasesFlutterPlugin"))
-  RecordMacOsPlugin.register(with: registry.registrar(forPlugin: "RecordMacOsPlugin"))
+  RecordDarwinPlugin.register(with: registry.registrar(forPlugin: "RecordDarwinPlugin"))
   ScreenRetrieverMacosPlugin.register(with: registry.registrar(forPlugin: "ScreenRetrieverMacosPlugin"))
   SharedPreferencesPlugin.register(with: registry.registrar(forPlugin: "SharedPreferencesPlugin"))
   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))
