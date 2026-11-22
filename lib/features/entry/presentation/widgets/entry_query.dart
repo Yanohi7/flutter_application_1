@@ -1,6 +1,7 @@
 import '../../domain/entities/entry.dart';
 import 'entry_filter_sheet.dart';
 import 'entry_formatted_content.dart';
+import 'entry_sort_strategy.dart';
 
 /// Applies the same query semantics to navigation, search, and content filters.
 List<Entry> queryEntries(
@@ -43,20 +44,7 @@ List<Entry> queryEntries(
             .toLowerCase()
             .contains(search);
   }).toList();
-  final titles = options.sort == 'A–Z' || options.sort == 'Z–A'
-      ? {for (final entry in result) entry: (entry.title ?? '').toLowerCase()}
-      : const <Entry, String>{};
-  result.sort((a, b) {
-    if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
-    final order = switch (options.sort) {
-      'Oldest' => a.createdAt.compareTo(b.createdAt),
-      'A–Z' => titles[a]!.compareTo(titles[b]!),
-      'Z–A' => titles[b]!.compareTo(titles[a]!),
-      'Last edited' => b.updatedAt.compareTo(a.updatedAt),
-      _ => b.createdAt.compareTo(a.createdAt),
-    };
-    return order != 0 ? order : (a.id ?? 0).compareTo(b.id ?? 0);
-  });
+  EntrySortStrategy.forOption(options.sort).sort(result);
   return result;
 }
 

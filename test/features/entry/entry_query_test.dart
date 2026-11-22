@@ -29,10 +29,7 @@ void main() {
       _note(2, title: 'Project budget', category: 2),
     ];
 
-    expect(
-      queryEntries(entries, categoryId: 1, query: 'project').single.id,
-      1,
-    );
+    expect(queryEntries(entries, categoryId: 1, query: 'project').single.id, 1);
     expect(
       queryEntries(
         entries,
@@ -56,8 +53,11 @@ void main() {
       unorderedEquals([2, 3]),
     );
     expect(
-      queryEntries(entries, categoryId: 1, favoritesOnly: true)
-          .map((entry) => entry.id),
+      queryEntries(
+        entries,
+        categoryId: 1,
+        favoritesOnly: true,
+      ).map((entry) => entry.id),
       unorderedEquals([1, 3]),
     );
   });
@@ -123,13 +123,19 @@ void main() {
     final now = DateTime(2026, 11, 10, 14);
 
     expect(
-      queryEntries(entries, options: const EntryViewOptions(time: 'This week'), now: now)
-          .map((entry) => entry.id),
+      queryEntries(
+        entries,
+        options: const EntryViewOptions(time: 'This week'),
+        now: now,
+      ).map((entry) => entry.id),
       unorderedEquals([3, 4]),
     );
     expect(
-      queryEntries(entries, options: const EntryViewOptions(time: 'This month'), now: now)
-          .map((entry) => entry.id),
+      queryEntries(
+        entries,
+        options: const EntryViewOptions(time: 'This month'),
+        now: now,
+      ).map((entry) => entry.id),
       unorderedEquals([2, 3, 4, 5]),
     );
   });
@@ -152,8 +158,16 @@ void main() {
   test('UT-10 Last edited sort uses update time after pinned priority', () {
     final entries = [
       _note(1, pinned: true, updatedAt: DateTime(2026, 11, 10, 1)),
-      _note(2, date: DateTime(2026, 11, 10), updatedAt: DateTime(2026, 11, 10, 2)),
-      _note(3, date: DateTime(2026, 11, 9), updatedAt: DateTime(2026, 11, 10, 3)),
+      _note(
+        2,
+        date: DateTime(2026, 11, 10),
+        updatedAt: DateTime(2026, 11, 10, 2),
+      ),
+      _note(
+        3,
+        date: DateTime(2026, 11, 9),
+        updatedAt: DateTime(2026, 11, 10, 3),
+      ),
     ];
 
     final result = queryEntries(
@@ -162,6 +176,46 @@ void main() {
     );
 
     expect(result.map((entry) => entry.id), [1, 3, 2]);
+  });
+
+  test('All sort choices keep pinned entries first and order the rest', () {
+    final entries = [
+      _note(
+        4,
+        title: 'beta',
+        date: DateTime(2026, 11, 10),
+        updatedAt: DateTime(2026, 11, 11),
+      ),
+      _note(
+        2,
+        title: 'beta',
+        date: DateTime(2026, 11, 8),
+        updatedAt: DateTime(2026, 11, 12),
+      ),
+      _note(1, title: 'Zulu', pinned: true, date: DateTime(2026, 11, 7)),
+      _note(
+        3,
+        title: 'Alpha',
+        date: DateTime(2026, 11, 9),
+        updatedAt: DateTime(2026, 11, 10),
+      ),
+    ];
+    final expected = <String, List<int>>{
+      'Newest': [1, 4, 3, 2],
+      'Oldest': [1, 2, 3, 4],
+      'A-Z': [1, 3, 2, 4],
+      'Z-A': [1, 2, 4, 3],
+      'Last edited': [1, 2, 4, 3],
+    };
+
+    for (final choice in expected.entries) {
+      final result = queryEntries(
+        entries,
+        options: EntryViewOptions(sort: choice.key),
+      );
+      expect(result.map((entry) => entry.id), choice.value, reason: choice.key);
+    }
+    expect(entries.map((entry) => entry.id), [4, 2, 1, 3]);
   });
 }
 
