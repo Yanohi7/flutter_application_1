@@ -6,6 +6,11 @@ import 'package:flutter_application_1/core/database/database_helper.dart';
 import 'package:flutter_application_1/features/cloud_sync/data/datasources/drive_workspace_store.dart';
 import 'package:flutter_application_1/features/cloud_sync/data/local_workspace_snapshot.dart';
 import 'package:flutter_application_1/features/cloud_sync/data/workspace_sync.dart';
+import 'package:flutter_application_1/features/entry/data/datasources/entry_local_datasource.dart';
+import 'package:flutter_application_1/features/entry/data/repositories/entry_repository_impl.dart';
+import 'package:flutter_application_1/features/entry/domain/usecases/create_entry.dart';
+import 'package:flutter_application_1/features/category/data/datasources/category_local_datasource.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -18,9 +23,212 @@ void main() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   });
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+  group('Personal workspace', () {
+    late Directory root;
+    late _FakeDrive drive;
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('entries-personal-drive-');
+      addTearDown(() => root.delete(recursive: true));
+      drive = _FakeDrive();
+    });
+
+    Future<
+      ({
+        EntryRepositoryImpl entries,
+        CategoryLocalDataSource categories,
+        WorkspaceSync sync,
+      })
+    >
+    openDevice(String name, {bool testWorkspace = false}) async {
+      final files = await Directory(p.join(root.path, name)).create();
+      final database = DatabaseHelper.forTesting(
+        p.join(files.path, 'entries.db'),
+      );
+      addTearDown(database.close);
+      final account = await database.getOrCreateGoogleAccount(
+        googleAccountId: 'same-google-account',
+        email: 'entries@example.test',
+      );
+      final workspace = DatabaseHelper.forUser(database, account.id);
+      final store = DriveWorkspaceStore(
+        () async => {'Authorization': 'Bearer test-token'},
+        testWorkspace: testWorkspace,
+        client: MockClient(drive.request),
+      );
+      addTearDown(store.close);
+      return (
+        entries: EntryRepositoryImpl(EntryLocalDataSourceImpl(workspace)),
+        categories: CategoryLocalDataSource(workspace),
+        sync: WorkspaceSync(
+          LocalWorkspaceSnapshot(workspace),
+          store,
+          () async => files,
+        ),
+      );
+    }
+
+    Future<void> apply(Future<void> Function() operation) => operation();
+
+    test(
+      'A new personal note syncs to an already connected second device',
+      () async {
+        final phone = await openDevice('phone');
+        final emulator = await openDevice('emulator');
+        await CreateEntry(phone.entries)(
+          title: 'Existing note',
+          content: 'Before',
+        );
+        final firstUpload = await phone.sync.sync(applyDownload: apply);
+        expect(firstUpload.result, WorkspaceSyncResult.uploaded);
+        final baseline = await emulator.sync.sync(applyDownload: apply);
+        expect(baseline.result, WorkspaceSyncResult.downloaded);
+        expect(baseline.digest, firstUpload.digest);
+        expect(
+          (await emulator.entries.getEntries()).single.title,
+          'Existing note',
+        );
+
+        await CreateEntry(phone.entries)(
+          title: 'From my phone',
+          content: 'New text',
+        );
+        final upload = await phone.sync.sync(
+          previousDigest: firstUpload.digest,
+          applyDownload: apply,
+        );
+        expect(upload.result, WorkspaceSyncResult.uploaded);
+        final download = await emulator.sync.sync(
+          previousDigest: baseline.digest,
+          localKnownUnchanged: true,
+          applyDownload: apply,
+        );
+        expect(download.result, WorkspaceSyncResult.downloaded);
+        expect(download.digest, upload.digest);
+        final entries = await emulator.entries.getEntries();
+        expect(
+          entries.map((entry) => entry.title),
+          unorderedEquals(['Existing note', 'From my phone']),
+        );
+        expect(
+          entries
+              .singleWhere((entry) => entry.title == 'From my phone')
+              .content,
+          'New text',
+        );
+        expect(
+          drive.revisions.map((revision) => revision['name']),
+          everyElement('entries_sync_v1.json'),
+        );
+      },
+    );
+
+    test(
+      'Independently created personal notes stay in their shared category',
+      () async {
+        final phone = await openDevice('phone');
+        final emulator = await openDevice('emulator');
+        await CreateEntry(phone.entries)(
+          title: 'Shared note',
+          content: 'Baseline',
+        );
+        final initial = await phone.sync.sync(applyDownload: apply);
+        final baseline = await emulator.sync.sync(applyDownload: apply);
+        expect(baseline.digest, initial.digest);
+
+        await CreateEntry(phone.entries)(
+          title: 'From phone',
+          content: 'Phone text',
+        );
+        await CreateEntry(emulator.entries)(
+          title: 'From emulator',
+          content: 'Emulator text',
+        );
+        final upload = await phone.sync.sync(
+          previousDigest: initial.digest,
+          applyDownload: apply,
+        );
+        expect(upload.result, WorkspaceSyncResult.uploaded);
+        final merged = await emulator.sync.sync(
+          previousDigest: baseline.digest,
+          applyDownload: apply,
+        );
+        expect(merged.result, WorkspaceSyncResult.merged);
+        final download = await phone.sync.sync(
+          previousDigest: upload.digest,
+          applyDownload: apply,
+        );
+        expect(download.result, WorkspaceSyncResult.downloaded);
+        expect(download.digest, merged.digest);
+
+        for (final device in [phone, emulator]) {
+          final entries = await device.entries.getEntries();
+          expect(
+            entries.map((entry) => (entry.title, entry.content)),
+            unorderedEquals([
+              ('Shared note', 'Baseline'),
+              ('From phone', 'Phone text'),
+              ('From emulator', 'Emulator text'),
+            ]),
+          );
+          expect(
+            entries.map((entry) => entry.categoryName),
+            everyElement('General'),
+          );
+          expect(
+            (await device.categories.getCategories()).map(
+              (category) => category.name,
+            ),
+            ['General'],
+          );
+        }
+        expect(drive.revisions, hasLength(3));
+      },
+    );
+
+    test('Personal and test workspaces use separate Drive backups', () async {
+      final demo = await openDevice('demo', testWorkspace: true);
+      final personal = await openDevice('personal');
+      final otherDevice = await openDevice('other-personal');
+
+      await CreateEntry(demo.entries)(title: 'Demo only', content: 'Demo');
+      expect(
+        (await demo.sync.sync(applyDownload: apply)).result,
+        WorkspaceSyncResult.uploaded,
+      );
+      expect(
+        (await personal.sync.sync(applyDownload: apply)).result,
+        WorkspaceSyncResult.empty,
+      );
+      expect(await personal.entries.getEntries(), isEmpty);
+
+      await CreateEntry(personal.entries)(
+        title: 'Personal only',
+        content: 'Personal',
+      );
+      expect(
+        (await personal.sync.sync(applyDownload: apply)).result,
+        WorkspaceSyncResult.uploaded,
+      );
+      expect(
+        (await otherDevice.sync.sync(applyDownload: apply)).result,
+        WorkspaceSyncResult.downloaded,
+      );
+      expect(
+        (await otherDevice.entries.getEntries()).single.title,
+        'Personal only',
+      );
+      expect(
+        drive.revisions.map((revision) => revision['name']),
+        unorderedEquals(['entries_test_sync_v1.json', 'entries_sync_v1.json']),
+      );
+    });
+  });
 
   test(
-    'Two devices upload, restore updates, and keep both sides of a conflict',
+    'IT-03 Two devices automatically keep both edits without repeat copies',
     () async {
       final root = await Directory.systemTemp.createTemp('entries-drive-');
       addTearDown(() => root.delete(recursive: true));
@@ -107,27 +315,13 @@ void main() {
         previousDigest: latest.digest,
         applyDownload: apply,
       );
-      WorkspaceConflict? conflict;
-      await expectLater(
-        secondSync.sync(previousDigest: updated.digest, applyDownload: apply),
-        throwsA(
-          isA<WorkspaceConflict>().having(
-            (error) {
-              conflict = error;
-              return error.heads.length;
-            },
-            'Drive versions',
-            1,
-          ),
-        ),
-      );
-      expect(
-        (await secondDb.query('entries')).single['content'],
-        'Second device edit',
-      );
       expect(drive.revisions, hasLength(3));
-
-      final mergedDigest = await secondSync.keepBoth(conflict!);
+      final resolution = await secondSync.sync(
+        previousDigest: updated.digest,
+        applyDownload: apply,
+      );
+      expect(resolution.result, WorkspaceSyncResult.merged);
+      final mergedDigest = resolution.digest;
       expect(drive.revisions, hasLength(4));
       final merged = await secondDb.query('entries', orderBy: 'id');
       expect(merged.map((row) => row['content']), [
@@ -152,7 +346,20 @@ void main() {
         applyDownload: apply,
       );
       expect(onFirst.digest, mergedDigest);
-      expect(await db.query('entries', orderBy: 'id'), merged);
+      // SQLite assigns local IDs on restore; the sync IDs must match.
+      const syncedEntries = '''
+        SELECT e.sync_id, c.sync_id AS category_sync_id, e.title, e.content,
+               e.private_content, e.created_at, e.updated_at, e.is_pinned,
+               e.is_favorite, e.is_deleted, e.deleted_at
+        FROM entries e
+        JOIN categories c ON c.id = e.category_id
+        ORDER BY e.sync_id
+      ''';
+      expect(await db.rawQuery('PRAGMA foreign_key_check'), isEmpty);
+      expect(
+        await db.rawQuery(syncedEntries),
+        await secondDb.rawQuery(syncedEntries),
+      );
     },
   );
 }
@@ -167,9 +374,19 @@ class _FakeDrive {
     expect(uri.host, 'www.googleapis.com');
     if (request.method == 'GET' && uri.path == '/drive/v3/files') {
       expect(uri.queryParameters['spaces'], 'appDataFolder');
-      expect(uri.queryParameters['q'], contains('entries_test_sync_v1.json'));
+      final query = uri.queryParameters['q'];
+      expect(
+        query,
+        anyOf(
+          "name = 'entries_test_sync_v1.json'",
+          "name = 'entries_sync_v1.json'",
+        ),
+      );
       expect(request.headers['Authorization'], 'Bearer test-token');
-      return http.Response(jsonEncode({'files': revisions}), 200);
+      final matches = revisions.where(
+        (revision) => query == "name = '${revision['name']}'",
+      );
+      return http.Response(jsonEncode({'files': matches.toList()}), 200);
     }
     if (request.method == 'POST') {
       expect(uri.queryParameters['uploadType'], 'resumable');
@@ -186,7 +403,11 @@ class _FakeDrive {
     }
     if (request.method == 'PUT') {
       final id = '${revisions.length + 1}';
-      revisions.add({'id': id, 'appProperties': _pending!['appProperties']});
+      revisions.add({
+        'id': id,
+        'name': _pending!['name'],
+        'appProperties': _pending!['appProperties'],
+      });
       bodies[id] = request.bodyBytes;
       _pending = null;
       return http.Response('', 200);

@@ -115,7 +115,7 @@ class CloudSyncController extends ChangeNotifier {
   String? message;
   String? accountMessage;
   bool accountBusy = false;
-  WorkspaceConflict? conflict;
+  bool needsPrivateSyncPassword = false;
   WorkspaceGoogleAccount? get account => _google.account;
   bool get isConnected => account != null && account!.id == _owner;
   bool get _canSyncHere =>
@@ -123,7 +123,7 @@ class CloudSyncController extends ChangeNotifier {
       _foreground &&
       (_workspaceVisible || _profileVisible) &&
       !_disposed;
-  bool get _canAuto => autoSync && _canSyncHere && conflict == null;
+  bool get _canAuto => autoSync && _canSyncHere && !needsPrivateSyncPassword;
 
   Future<void> load() async {
     final saved = await _database.initActiveUser();
@@ -219,7 +219,7 @@ class CloudSyncController extends ChangeNotifier {
     _initialSyncRunning = false;
     _syncedGeneration = null;
     _localGeneration = 0;
-    conflict = null;
+    needsPrivateSyncPassword = false;
     guestTransferAvailable = canTransferGuestEntries;
     _guestTransferOffered = false;
     message = null;
@@ -382,10 +382,18 @@ class CloudSyncController extends ChangeNotifier {
     _scheduleAuto();
   }
 
-  Future<void> syncNow({bool automatic = false}) =>
-      _run(() => _syncWorkspace(automatic: automatic));
+  Future<void> syncNow({
+    bool automatic = false,
+    PrivateBackupPassword? requestPassword,
+  }) => _run(
+    () =>
+        _syncWorkspace(automatic: automatic, requestPassword: requestPassword),
+  );
 
-  Future<void> _syncWorkspace({required bool automatic}) async {
+  Future<void> _syncWorkspace({
+    required bool automatic,
+    PrivateBackupPassword? requestPassword,
+  }) async {
     if (!hasGoogleWorkspace ||
         (automatic && !_canAuto && !(_canSyncHere && _reconnectWhenOnline))) {
       return;
@@ -402,7 +410,10 @@ class CloudSyncController extends ChangeNotifier {
       _notify();
     }
     try {
-      await _syncEntries(automatic: automatic);
+      await _syncEntries(
+        automatic: automatic,
+        requestPassword: requestPassword,
+      );
     } finally {
       if (initial) {
         _initialEntriesIndicator?.cancel();
@@ -411,7 +422,10 @@ class CloudSyncController extends ChangeNotifier {
     }
   }
 
-  Future<void> _syncEntries({required bool automatic}) async {
+  Future<void> _syncEntries({
+    required bool automatic,
+    PrivateBackupPassword? requestPassword,
+  }) async {
     if (!isConnected && !await _online()) {
       if (automatic) return;
       throw const DriveSyncException(
@@ -438,6 +452,7 @@ class CloudSyncController extends ChangeNotifier {
           ? (content) => confirmedContent = content
           : null,
       previousDigest: _digest,
+      requestPassword: requestPassword,
       localKnownUnchanged:
           automatic && generation == _syncedGeneration && !transferPending,
       applyDownload: (apply) async {
@@ -464,7 +479,10 @@ class CloudSyncController extends ChangeNotifier {
     final oldTime = lastSync;
     _digest = result.digest;
     lastSync = DateTime.now().toUtc();
-    if (result.result == WorkspaceSyncResult.downloaded) downloadedCount++;
+    if (result.result == WorkspaceSyncResult.downloaded ||
+        result.result == WorkspaceSyncResult.merged) {
+      downloadedCount++;
+    }
     try {
       await _save();
       _syncedGeneration = generation;
@@ -473,7 +491,7 @@ class CloudSyncController extends ChangeNotifier {
       lastSync = oldTime;
       rethrow;
     }
-    conflict = null;
+    needsPrivateSyncPassword = false;
     if (confirmedContent case final snapshot?) {
       await _transfer.finish(snapshot);
     }
@@ -481,50 +499,12 @@ class CloudSyncController extends ChangeNotifier {
     await _drive.removeSuperseded();
     message = switch (result.result) {
       WorkspaceSyncResult.empty => 'There are no entries to sync yet.',
-      WorkspaceSyncResult.current => 'Entries are up to date.',
+      WorkspaceSyncResult.current ||
+      WorkspaceSyncResult.merged => 'Entries are up to date.',
       WorkspaceSyncResult.uploaded => 'Entries uploaded to Google Drive.',
       WorkspaceSyncResult.downloaded => 'Entries downloaded from Google Drive.',
     };
   }
-
-  Future<void> keepBothCopies({PrivateBackupPassword? requestPassword}) =>
-      _run(() async {
-        final pending = conflict;
-        if (pending == null || !_profileVisible || !_foreground) {
-          return;
-        }
-        if (!await _authorize(interactive: true)) {
-          needsGoogleAccess = true;
-          return;
-        }
-        needsGoogleAccess = false;
-        try {
-          String? confirmedContent;
-          _digest = await _sync.keepBoth(
-            pending,
-            requestPassword: requestPassword,
-            beforeApply: () {
-              if (!_foreground) throw const PrivateMergeCanceled();
-              applyingRemote = true;
-              _notify();
-            },
-            onConfirmed: (content) => confirmedContent = content,
-          );
-          lastSync = DateTime.now().toUtc();
-          downloadedCount++;
-          conflict = null;
-          await _save();
-          if (confirmedContent case final snapshot?) {
-            await _transfer.finish(snapshot);
-          }
-          guestTransferAvailable = await _transfer.isAvailable();
-          await _drive.removeSuperseded();
-          message = 'Both sets of entries are now synced. See Google Drive copies for imported entries.';
-        } finally {
-          applyingRemote = false;
-          _scheduleAuto();
-        }
-      });
 
   void scheduleInitialSync() => _scheduleAuto();
 
@@ -637,13 +617,14 @@ class CloudSyncController extends ChangeNotifier {
     } on _DeferredSync {
       _scheduleAuto();
     } on PrivateMergeCanceled {
-      // Keep the existing conflict and both copies unchanged.
+      // Wait for an explicit retry so the password prompt stays dismissed.
+      needsPrivateSyncPassword = true;
     } on GoogleSignInException catch (error) {
       errorMessage = error.code == GoogleSignInExceptionCode.canceled
           ? 'Google sign-in was canceled.'
           : 'Could not connect your Google account. Try again.';
-    } on WorkspaceConflict catch (error) {
-      conflict = error;
+    } on PrivateSyncPasswordRequired catch (error) {
+      needsPrivateSyncPassword = true;
       errorMessage = error.message;
     } on DriveSyncException catch (error) {
       errorMessage = error.message;

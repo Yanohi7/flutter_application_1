@@ -9,7 +9,7 @@ import 'datasources/drive_workspace_store.dart';
 import 'local_workspace_snapshot.dart';
 import 'workspace_merge.dart';
 
-enum WorkspaceSyncResult { empty, current, uploaded, downloaded }
+enum WorkspaceSyncResult { empty, current, uploaded, downloaded, merged }
 
 typedef PrivateBackupPassword = Future<String?> Function({
   required bool local,
@@ -20,14 +20,11 @@ class PrivateMergeCanceled implements Exception {
   const PrivateMergeCanceled();
 }
 
-class WorkspaceConflict extends DriveSyncException {
-  const WorkspaceConflict(this.localDigest, this.heads)
+class PrivateSyncPasswordRequired extends DriveSyncException {
+  const PrivateSyncPasswordRequired()
     : super(
-        'This device and Google Drive have different versions. Both copies were kept.',
+        'The private information on these copies uses different passwords.',
       );
-
-  final String localDigest;
-  final List<DriveRevision> heads;
 }
 
 class WorkspaceSync {
@@ -41,6 +38,7 @@ class WorkspaceSync {
     String? previousDigest,
     bool localKnownUnchanged = false,
     void Function(String)? onConfirmed,
+    PrivateBackupPassword? requestPassword,
     required Future<void> Function(Future<void> Function()) applyDownload,
   }) async {
     final heads = await _drive.heads();
@@ -63,7 +61,20 @@ class WorkspaceSync {
       return (result: WorkspaceSyncResult.empty, digest: null);
     }
     final (bytes: body, :digest) = await _prepareUpload(local.content, key);
-    if (multipleVersions) throw WorkspaceConflict(digest, heads);
+    Future<({WorkspaceSyncResult result, String? digest})> merge() async {
+      final mergedDigest = await _merge(
+        local.content,
+        key,
+        digest,
+        heads,
+        onConfirmed: onConfirmed,
+        requestPassword: requestPassword,
+        applyDownload: applyDownload,
+      );
+      return (result: WorkspaceSyncResult.merged, digest: mergedDigest);
+    }
+
+    if (multipleVersions) return merge();
     if (remote?.digest == digest) {
       onConfirmed?.call(local.content);
       return (result: WorkspaceSyncResult.current, digest: digest);
@@ -83,7 +94,7 @@ class WorkspaceSync {
       return (result: WorkspaceSyncResult.uploaded, digest: digest);
     }
     if (digest != previousDigest && !local.isEmpty) {
-      throw WorkspaceConflict(digest, heads);
+      return merge();
     }
     final (:content, :envelope, :hasPrivate) = await _download(
       remote,
@@ -95,7 +106,7 @@ class WorkspaceSync {
         envelope != null &&
         configuredEnvelope != null &&
         !sameWorkspacePrivateKey(configuredEnvelope, envelope)) {
-      throw WorkspaceConflict(digest, heads);
+      return merge();
     }
     await applyDownload(() async {
       if (hasPrivate && envelope == null) {
@@ -121,32 +132,15 @@ class WorkspaceSync {
     return (result: WorkspaceSyncResult.downloaded, digest: remote.digest);
   }
 
-  Future<String> keepBoth(
-    WorkspaceConflict conflict, {
+  Future<String> _merge(
+    String localContent,
+    String? configuredEnvelope,
+    String localDigest,
+    List<DriveRevision> heads, {
     void Function(String)? onConfirmed,
     PrivateBackupPassword? requestPassword,
-    void Function()? beforeApply,
+    required Future<void> Function(Future<void> Function()) applyDownload,
   }) async {
-    final local = await _local.exportForSync();
-    final localEnvelope = await _keyFor(local.hasPrivate);
-    final localDigest = (await _prepareUpload(
-      local.content,
-      localEnvelope,
-    )).digest;
-    final heads = await _drive.heads();
-    if (localDigest != conflict.localDigest ||
-        heads.length != conflict.heads.length ||
-        !heads.every(
-          (head) => conflict.heads.any(
-            (seen) => seen.id == head.id && seen.digest == head.digest,
-          ),
-        )) {
-      throw const DriveSyncException(
-        'A version changed. Run Sync now to review the latest copies.',
-      );
-    }
-    final configuredEnvelope =
-        localEnvelope ?? await PrivateContentStore.readSyncPasswordEnvelope();
     var envelope = configuredEnvelope;
     var targetCopy = 0;
     final seen = {localDigest};
@@ -198,44 +192,45 @@ class WorkspaceSync {
     }
 
     final size = remoteCopies.fold(
-      local.content.length,
+      localContent.length,
       (sum, copy) => sum + copy.length,
     );
     final merged = size >= _backgroundThreshold
-        ? await compute(_mergeCopies, (local.content, remoteCopies))
-        : mergeWorkspaceCopies(local.content, remoteCopies);
-    beforeApply?.call();
-    final currentHeads = await _drive.heads();
-    if (currentHeads.length != heads.length ||
-        !currentHeads.every(
-          (head) => heads.any(
-            (copy) => head.id == copy.id && head.digest == copy.digest,
-          ),
-        ) ||
-        (await _local.exportForSync()).content != local.content ||
-        await PrivateContentStore.readSyncPasswordEnvelope() !=
-            configuredEnvelope) {
-      throw const DriveSyncException(
-        'A version changed. Run Sync now to review the latest copies.',
-      );
-    }
+        ? await compute(_mergeCopies, (localContent, remoteCopies))
+        : mergeWorkspaceCopies(localContent, remoteCopies);
     final (bytes: body, :digest) = await _prepareUpload(merged, envelope);
-    await _drive.publish(
-      body,
-      digest: digest,
-      parents: heads.map((head) => head.id).toList(),
-    );
-    await _local.restore(
-      merged,
-      storageRoot: await _storageRoot(),
-      replaceExpected: local.content,
-      afterRestore: configuredEnvelope == null && envelope != null
-          ? (txn) => PrivateContentStore.acceptSyncPasswordEnvelope(
-              envelope!,
-              transaction: txn,
-            )
-          : null,
-    );
+    await applyDownload(() async {
+      final currentHeads = await _drive.heads();
+      if (currentHeads.length != heads.length ||
+          !currentHeads.every(
+            (head) => heads.any(
+              (copy) => head.id == copy.id && head.digest == copy.digest,
+            ),
+          ) ||
+          (await _local.exportForSync()).content != localContent ||
+          await PrivateContentStore.readSyncPasswordEnvelope() !=
+              configuredEnvelope) {
+        throw const DriveSyncException(
+          'Entries changed during sync. Try again.',
+        );
+      }
+      await _drive.publish(
+        body,
+        digest: digest,
+        parents: heads.map((head) => head.id).toList(),
+      );
+      await _local.restore(
+        merged,
+        storageRoot: await _storageRoot(),
+        replaceExpected: localContent,
+        afterRestore: configuredEnvelope == null && envelope != null
+            ? (txn) => PrivateContentStore.acceptSyncPasswordEnvelope(
+                envelope!,
+                transaction: txn,
+              )
+            : null,
+      );
+    });
     onConfirmed?.call(merged);
     return digest;
   }
@@ -247,9 +242,7 @@ class WorkspaceSync {
     required int copy,
   }) async {
     if (requestPassword == null) {
-      throw const DriveSyncException(
-        'The private information on these copies uses different passwords.',
-      );
+      throw const PrivateSyncPasswordRequired();
     }
     final password = await requestPassword(local: local, copy: copy);
     if (password == null) throw const PrivateMergeCanceled();

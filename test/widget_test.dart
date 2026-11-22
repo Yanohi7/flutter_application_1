@@ -128,26 +128,11 @@ void main() {
     await tester.tap(await revealSave(tester));
   }
 
-  testWidgets('First entry: validate, save, open, and edit', (tester) async {
+  testWidgets('TC-01 Creates and opens a note', (tester) async {
     final repo = TestEntriesRepository();
     await openApp(tester, repo);
     expect(find.text('Start with your first entry'), findsOneWidget);
     await openEditor(tester);
-    await tapSave(tester);
-    await tester.pumpAndSettle();
-    expect(
-      find.descendant(
-        of: find.byType(SnackBar),
-        matching: find.text('Enter an entry title'),
-      ),
-      findsOneWidget,
-    );
-    final title = find.byKey(const Key('entry-title'));
-    final field = tester.widget<EditableText>(
-      find.descendant(of: title, matching: find.byType(EditableText)),
-    );
-    expect(field.focusNode.hasFocus, isTrue);
-    expect(repo.entries, isEmpty);
     await tester.enterText(
       find.byKey(const Key('entry-title')),
       'My first entry',
@@ -158,18 +143,30 @@ void main() {
     );
     await tapSave(tester);
     await tester.pumpAndSettle();
+
     expect(find.byType(EntryCard), findsOneWidget);
     expect(repo.entries.single.content, 'This text should be saved.');
     await tester.tap(find.text('My first entry'));
     await tester.pumpAndSettle();
     expect(find.text('This text should be saved.'), findsOneWidget);
+  });
+
+  testWidgets('TC-02 Edits an existing note without duplicating it', (
+    tester,
+  ) async {
+    final entry = sampleEntry(1);
+    final repo = TestEntriesRepository([entry]);
+    await openApp(tester, repo);
+    await tester.tap(find.text(entry.title!));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('entry-content')),
       'Updated text',
     );
     await tester.tap(find.byTooltip('Reading mode'));
     await tester.pumpAndSettle();
-    expect(repo.entries.length, 1); // Editing does not create a duplicate.
+
+    expect(repo.entries.single.id, entry.id);
     expect(repo.entries.single.content, 'Updated text');
     expect(find.byKey(const Key('entry-content')), findsNothing);
     expect(find.byKey(const Key('entry-title')), findsNothing);
@@ -177,6 +174,7 @@ void main() {
     for (final label in ['Gallery', 'Record', 'Add audio', 'Add files']) {
       expect(find.text(label), findsNothing);
     }
+
     await tester.tap(find.byTooltip('Exit reading mode'));
     await tester.pumpAndSettle();
     for (final label in ['Gallery', 'Record', 'Add audio', 'Add files']) {
@@ -193,7 +191,31 @@ void main() {
     expect(find.byKey(const Key('entry-content')), findsOneWidget);
   });
 
-  testWidgets('A save failure preserves text and allows retrying', (
+  testWidgets('TC-06 Rejects a note with a missing title', (tester) async {
+    final repo = TestEntriesRepository();
+    await openApp(tester, repo);
+    await openEditor(tester);
+    await tapSave(tester);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.text('Enter an entry title'),
+      ),
+      findsOneWidget,
+    );
+    final field = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('entry-title')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(field.focusNode.hasFocus, isTrue);
+    expect(repo.entries, isEmpty);
+  });
+
+  testWidgets('TC-09 A save failure preserves text and allows retrying', (
     tester,
   ) async {
     final repo = TestEntriesRepository()..failSave = true;
@@ -287,9 +309,20 @@ void main() {
     expect(find.text('Start with your first entry'), findsOneWidget);
   });
 
-  testWidgets('Favorites, search, and deletion with confirmation', (
-    tester,
-  ) async {
+  testWidgets('TC-03 Finds a note by part of its title', (tester) async {
+    final first = sampleEntry(1);
+    final second = sampleEntry(2);
+    await openApp(tester, TestEntriesRepository([first, second]));
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Entry 1');
+    await tester.pumpAndSettle();
+
+    expect(find.text(first.title!), findsOneWidget);
+    expect(find.text(second.title!), findsNothing);
+  });
+
+  testWidgets('TC-04 Shows only marked notes in Favorites', (tester) async {
     final repo = TestEntriesRepository([sampleEntry(1), sampleEntry(2)]);
     await openApp(tester, repo);
     await tester.tap(find.byTooltip('Add to favorites').first);
@@ -298,31 +331,62 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Favorites'));
     await tester.pumpAndSettle();
+
+    final favorite = repo.entries.singleWhere((entry) => entry.isFavorite);
     expect(find.byType(EntryCard), findsOneWidget);
+    expect(find.text(favorite.title!), findsOneWidget);
+  });
+
+  Future<void> requestDeletion(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Entry actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('TC-05 Deletes a note after confirmation', (tester) async {
+    final entry = sampleEntry(1);
+    final repo = TestEntriesRepository([entry]);
+    await openApp(tester, repo);
+    await requestDeletion(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(repo.entries, isEmpty);
+    expect(find.text(entry.title!), findsNothing);
+  });
+
+  testWidgets('TC-07 Shows an empty result for an unmatched search', (
+    tester,
+  ) async {
+    await openApp(tester, TestEntriesRepository([sampleEntry(1)]));
     await tester.tap(find.byTooltip('Search'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'no matching text');
     await tester.pumpAndSettle();
+
     expect(find.text('No search results'), findsOneWidget);
+    expect(find.byType(EntryCard), findsNothing);
     await tester.tap(find.byTooltip('Clear search'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Entry actions'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(repo.entries.length, 2);
-    await tester.tap(find.byTooltip('Entry actions'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
-    await tester.pumpAndSettle();
-    expect(repo.entries.length, 1);
+    expect(find.byType(EntryCard), findsOneWidget);
   });
 
-  testWidgets('A load failure allows retrying', (tester) async {
+  testWidgets('TC-08 Preserves a note when deletion is canceled', (
+    tester,
+  ) async {
+    final entry = sampleEntry(1);
+    final repo = TestEntriesRepository([entry]);
+    await openApp(tester, repo);
+    await requestDeletion(tester);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(repo.entries.single.id, entry.id);
+    expect(find.text(entry.title!), findsOneWidget);
+  });
+
+  testWidgets('TC-10 A load failure allows retrying', (tester) async {
     final repo = TestEntriesRepository()..failLoad = true;
     await openApp(tester, repo);
     expect(find.text('Try again'), findsOneWidget);

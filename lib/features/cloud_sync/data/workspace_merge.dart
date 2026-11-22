@@ -29,7 +29,7 @@ Future<void> reencryptWorkspacePrivateEntries(
   }
 }
 
-/// Keeps local rows and imports differing live Drive entries as separate copies.
+/// Keeps local rows and imports current Drive entries without overwriting edits.
 String mergeWorkspaceCopies(
   String local,
   List<String> remoteCopies, {
@@ -117,6 +117,7 @@ String mergeWorkspaceCopies(
   final originalCategories = {
     for (final category in categories) category['id']: category,
   };
+  final importedVersions = <String>{};
   var copyNumber = 0;
 
   for (final data in remotes) {
@@ -151,12 +152,48 @@ String mergeWorkspaceCopies(
               jsonEncode(remoteAttachments[id]);
     }).toList();
     final byId = {for (final row in remoteCategories) row['id']: row};
+    void importEntry(Map<String, dynamic> entry, Object? categoryId) {
+      final id = nextEntry++;
+      entries.add({...entry, 'id': id, 'category_id': categoryId});
+      for (final attachment in remoteAttachments[entry['id']] ?? const []) {
+        attachments.add({
+          ...attachment,
+          'id': nextAttachment++,
+          'entry_id': id,
+        });
+      }
+    }
+
+    final copies = <Map<String, dynamic>>[];
+    for (final entry in remoteEntries) {
+      final categoryId = entry['category_id'];
+      final localCategory = originalCategories[categoryId];
+      final existing = originalEntries[entry['id']];
+      if (importFolder == null &&
+          !importedVersions.add(
+            jsonEncode([
+              entry,
+              byId[categoryId],
+              remoteAttachments[entry['id']],
+            ]),
+          )) {
+        continue;
+      }
+      if (importFolder == null &&
+          (existing == null || identity(existing) != identity(entry)) &&
+          localCategory?['is_deleted'] == 0 &&
+          jsonEncode(localCategory) == jsonEncode(byId[categoryId])) {
+        importEntry(entry, categoryId);
+      } else {
+        copies.add(entry);
+      }
+    }
     final neededCategories = {
       for (final row in remoteCategories)
         if (importFolder != null ||
             jsonEncode(originalCategories[row['id']]) != jsonEncode(row))
           row['id'],
-      for (final entry in remoteEntries) entry['category_id'],
+      for (final entry in copies) entry['category_id'],
     };
     for (final id in neededCategories.toList()) {
       var parent = byId[id]?['parent_id'];
@@ -202,20 +239,8 @@ String mergeWorkspaceCopies(
         'is_default': 0,
       });
     }
-    for (final entry in remoteEntries) {
-      final id = nextEntry++;
-      entries.add({
-        ...entry,
-        'id': id,
-        'category_id': categoryIds[entry['category_id']] ?? root,
-      });
-      for (final attachment in remoteAttachments[entry['id']] ?? const []) {
-        attachments.add({
-          ...attachment,
-          'id': nextAttachment++,
-          'entry_id': id,
-        });
-      }
+    for (final entry in copies) {
+      importEntry(entry, categoryIds[entry['category_id']] ?? root);
     }
   }
 

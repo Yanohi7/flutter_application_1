@@ -86,7 +86,7 @@ void main() {
   );
 
   test(
-    'The first entry persists on disk and can be read after reopening',
+    'IT-01 The first entry persists on disk and can be read after reopening',
     () async {
       final entry = await CreateEntry(repository)(
         title: '  First entry  ',
@@ -142,7 +142,7 @@ void main() {
   );
 
   test(
-    'An empty title creates no entry; updating and permanent deletion work',
+    'IT-02 SQLite rejects invalid notes and persists updates and deletion',
     () async {
       await expectLater(
         CreateEntry(repository)(title: '   ', content: 'Text'),
@@ -164,7 +164,13 @@ void main() {
       await repository.deleteEntry(entry.id!);
       expect(await repository.getEntries(), isEmpty);
       final rows = await (await helper.database).query('entries');
-      expect(rows, isEmpty);
+      // Sync needs a deletion marker, but the deleted note's text is cleared.
+      final deleted = rows.single;
+      expect(deleted['id'], entry.id);
+      expect(deleted['is_deleted'], 1);
+      expect(deleted['deleted_at'], isNotNull);
+      expect(deleted['title'], isEmpty);
+      expect(deleted['content'], isEmpty);
     },
   );
 

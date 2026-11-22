@@ -52,9 +52,15 @@ class CloudSyncPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Flexible(
                     child: FilledButton.tonal(
-                      onPressed: sync.busy ? null : () => sync.syncNow(),
+                      onPressed: sync.busy
+                          ? null
+                          : () => _syncNow(context, sync),
                       child: Text(
-                        sync.needsGoogleAccess ? l10n.reconnect : l10n.syncNow,
+                        sync.needsGoogleAccess
+                            ? l10n.reconnect
+                            : sync.needsPrivateSyncPassword
+                            ? l10n.unlock
+                            : l10n.syncNow,
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -69,32 +75,6 @@ class CloudSyncPanel extends StatelessWidget {
                 onTap: sync.busy
                     ? null
                     : () => offerGuestTransfer(context, sync),
-              ),
-            if (sync.conflict != null)
-              ListTile(
-                leading: const Icon(Icons.sync_problem),
-                title: Text(
-                  AppLocalizations.of(context)!.differentVersionsFound,
-                ),
-                subtitle: Text(
-                  AppLocalizations.of(context)!
-                      .keepYourEntriesAndImportDifferingDriveEntriesAsCopies,
-                ),
-                trailing: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 84),
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                    ),
-                    onPressed: sync.busy
-                        ? null
-                        : () => _reviewConflict(context, sync),
-                    child: Text(
-                      AppLocalizations.of(context)!.review,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
               ),
             if (sync.busy && !sync.accountBusy) const LinearProgressIndicator(),
             if (sync.message case final String message)
@@ -114,44 +94,19 @@ class CloudSyncPanel extends StatelessWidget {
     );
   }
 
-  Future<void> _reviewConflict(
-    BuildContext context,
-    CloudSyncController sync,
-  ) async {
-    final keepBoth = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        scrollable: true,
-        title: Text(AppLocalizations.of(context)!.keepBothVersions),
-        content: Text(
-          AppLocalizations.of(
+  Future<void> _syncNow(BuildContext context, CloudSyncController sync) =>
+      sync.syncNow(
+        requestPassword: ({required local, required copy}) async {
+          if (!context.mounted) return null;
+          final l10n = AppLocalizations.of(context)!;
+          final password = await showWorkspacePrivatePassword(
             context,
-          )!.yourLocalEntriesAndProfileStayInPlaceDifferentEntriesFromGoogleDriveAreAddedToAGoogleDriveCopiesCategoryWithTh,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(AppLocalizations.of(context)!.keepBoth),
-          ),
-        ],
-      ),
-    );
-    if (keepBoth == true && context.mounted) {
-      await sync.keepBothCopies(
-        requestPassword: ({required local, required copy}) => context.mounted
-            ? showWorkspacePrivatePassword(
-                context,
-                local
-                    ? AppLocalizations.of(context)!.localPrivatePassword
-                    : AppLocalizations.of(context)!
-                          .driveCopyPrivatePassword(copy),
-              )
-            : Future.value(null),
+            local
+                ? l10n.localPrivatePassword
+                : l10n.driveCopyPrivatePassword(copy),
+          );
+          if (password != null) await WidgetsBinding.instance.endOfFrame;
+          return password;
+        },
       );
-    }
-  }
 }
